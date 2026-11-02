@@ -141,12 +141,15 @@ struct CheckCard: View {
     @State private var editingIncome = false
     @State private var incomeText = ""
     @State private var addingOneTime = false
+    @AppStorage(Fold.key) private var folded = ""
 
     var body: some View {
         let e = store.engine
         let t = e.totals(check.key, check.n)
         let ls = e.lines(check.key, check.n)
         let w = e.windowFor(check.key, check.n)
+        let cardId = "check.\(check.key).\(check.n)"
+        let cardFolded = Fold.has(folded, cardId)
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -154,14 +157,25 @@ struct CheckCard: View {
                     Text("Payday \(DU.dayLabel(check.date))").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button { incomeText = String(format: "%.2f", t.income); editingIncome = true } label: {
+                if cardFolded {
                     VStack(alignment: .trailing, spacing: 0) {
-                        Text("Take-home").font(.caption2).foregroundStyle(.secondary)
-                        Text(money(t.income)).font(.subheadline.weight(.semibold)).monospacedDigit()
+                        Text(t.left < 0 ? "Over budget" : "Left").font(.caption2).foregroundStyle(.secondary)
+                        Text(money(t.left)).font(.subheadline.weight(.semibold)).monospacedDigit()
+                            .foregroundStyle(t.left < 0 ? Theme.over : .primary)
                     }
-                }.buttonStyle(.plain)
+                } else {
+                    Button { incomeText = String(format: "%.2f", t.income); editingIncome = true } label: {
+                        VStack(alignment: .trailing, spacing: 0) {
+                            Text("Take-home").font(.caption2).foregroundStyle(.secondary)
+                            Text(money(t.income)).font(.subheadline.weight(.semibold)).monospacedDigit()
+                        }
+                    }.buttonStyle(.plain)
+                }
+                Button { withAnimation(.snappy) { folded = Fold.toggled(folded, cardId) } } label: { FoldChevron(folded: cardFolded) }
+                    .buttonStyle(.plain)
             }
 
+            if !cardFolded {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(money(t.left)).font(.system(size: 40, weight: .heavy)).monospacedDigit()
                     .foregroundStyle(t.left < 0 ? Theme.over : .primary)
@@ -178,19 +192,36 @@ struct CheckCard: View {
                 let group = ls.filter { $0.type == type }
                 if !group.isEmpty {
                     let info = TypeInfo.of(type)
-                    HStack {
-                        Circle().fill(info.color).frame(width: 8, height: 8)
-                        Text(info.label.uppercased()).font(.caption.weight(.bold)).tracking(0.5)
-                        Spacer()
-                        Text(money(group.filter { !$0.skip }.reduce(0) { $0 + $1.amount })).font(.caption.weight(.semibold)).monospacedDigit()
+                    // Folding a type (say Bills) folds it on every paycheck.
+                    let typeId = "type.\(type)"
+                    let typeFolded = Fold.has(folded, typeId)
+                    let active = group.filter { !$0.skip }
+                    let done = active.filter { $0.paid || $0.aside }.count
+                    Button { withAnimation(.snappy) { folded = Fold.toggled(folded, typeId) } } label: {
+                        HStack {
+                            Circle().fill(info.color).frame(width: 8, height: 8)
+                            Text(info.label.uppercased()).font(.caption.weight(.bold)).tracking(0.5)
+                            if typeFolded && type != "expense" {
+                                Text("\(done) of \(active.count) done").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text(money(active.reduce(0) { $0 + $1.amount })).font(.caption.weight(.semibold)).monospacedDigit()
+                            Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(.tertiary)
+                                .rotationEffect(.degrees(typeFolded ? -90 : 0))
+                        }
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                     .padding(.top, 6)
-                    ForEach(group, id: \.uid) { l in LineRow(line: l, check: check) }
+                    if !typeFolded {
+                        ForEach(group, id: \.uid) { l in LineRow(line: l, check: check) }
+                    }
                 }
             }
 
             Button { addingOneTime = true } label: { Label("Add a one-time item", systemImage: "plus") }
                 .font(.subheadline)
+            }
         }
         .card()
         .alert("Take-home pay", isPresented: $editingIncome) {

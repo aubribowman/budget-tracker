@@ -6,6 +6,7 @@ struct HomeView: View {
     @Binding var tab: AppTab
     @State private var adding = false
     @State private var showSetup = false
+    @State private var showGoals = false
 
     var envs: [Recurring] { store.state.recurring.filter { $0.type == "expense" } }
 
@@ -26,8 +27,7 @@ struct HomeView: View {
                         if !store.state.debts.isEmpty {
                             DebtSummary { tab = .debt }
                         }
-                        NavigationLink { GoalsView() } label: { GoalsSummary() }
-                            .buttonStyle(.plain)
+                        GoalsSummary { showGoals = true }
                         if !envs.isEmpty {
                             Button { adding = true } label: {
                                 Label("Log a purchase", systemImage: "plus.circle.fill")
@@ -51,6 +51,7 @@ struct HomeView: View {
             }
             .sheet(isPresented: $adding) { AddPurchaseSheet(envs: envs, preset: nil) }
             .sheet(isPresented: $showSetup) { SettingsView(showsDone: true) }
+            .navigationDestination(isPresented: $showGoals) { GoalsView() }
         }
     }
 
@@ -106,45 +107,78 @@ private struct PaycheckSummary: View {
     }
 }
 
+/// A Home card that folds down to its header and one summary number.
+/// Tapping the card opens its tab; the chevron folds it.
+private struct HomeCard<Content: View>: View {
+    @AppStorage(Fold.key) private var folded = ""
+    let id: String
+    let title: String
+    let icon: String
+    let summary: String
+    var summaryColor: Color = .secondary
+    let open: () -> Void
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        let isFolded = Fold.has(folded, id)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Label(title, systemImage: icon).font(.headline).foregroundStyle(Theme.accent).lineLimit(1)
+                Image(systemName: "chevron.right").font(.caption2.weight(.bold)).foregroundStyle(.tertiary)
+                Spacer(minLength: 8)
+                if isFolded {
+                    Text(summary).font(.subheadline.weight(.semibold)).monospacedDigit()
+                        .foregroundStyle(summaryColor).lineLimit(1).minimumScaleFactor(0.8)
+                }
+                Button { withAnimation(.snappy) { folded = Fold.toggled(folded, id) } } label: { FoldChevron(folded: isFolded) }
+                    .buttonStyle(.plain)
+            }
+            if !isFolded { content() }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+        .contentShape(Rectangle())
+        .onTapGesture(perform: open)
+    }
+}
+
 /// Bills still to pay from this paycheck, plus anything past due.
 private struct DueCard: View {
     let u: Engine.Upcoming
     let open: () -> Void
 
     var body: some View {
-        Button(action: open) {
-            VStack(alignment: .leading, spacing: 10) {
-                CardHeader(title: "To pay now", icon: "checklist")
-                if u.toPay.isEmpty && u.overdue.isEmpty {
-                    Text("You're all caught up.").font(.subheadline).foregroundStyle(.secondary)
-                } else {
-                    if !u.toPay.isEmpty {
+        let total = u.toPay.reduce(0) { $0 + $1.amount }
+        let summary = !u.overdue.isEmpty ? "\(u.overdue.count) past due"
+            : u.toPay.isEmpty ? "All caught up" : "\(money(total)) due"
+        HomeCard(id: "home.due", title: "To pay now", icon: "checklist", summary: summary,
+                 summaryColor: u.overdue.isEmpty ? .secondary : Theme.bad, open: open) {
+            if u.toPay.isEmpty && u.overdue.isEmpty {
+                Text("You're all caught up.").font(.subheadline).foregroundStyle(.secondary)
+            } else {
+                if !u.toPay.isEmpty {
+                    HStack {
+                        Text("\(u.toPay.count) \(u.toPay.count == 1 ? "bill" : "bills") due")
+                        Spacer()
+                        Text(money(total)).monospacedDigit().fontWeight(.semibold)
+                    }
+                    ForEach(u.toPay.prefix(3), id: \.uid) { l in
                         HStack {
-                            Text("\(u.toPay.count) \(u.toPay.count == 1 ? "bill" : "bills") due")
+                            Text(l.name).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
                             Spacer()
-                            Text(money(u.toPay.reduce(0) { $0 + $1.amount })).monospacedDigit().fontWeight(.semibold)
-                        }
-                        ForEach(u.toPay.prefix(3), id: \.uid) { l in
-                            HStack {
-                                Text(l.name).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-                                Spacer()
-                                Text(money(l.amount)).font(.subheadline).monospacedDigit().foregroundStyle(.secondary)
-                            }
-                        }
-                        if u.toPay.count > 3 {
-                            Text("and \(u.toPay.count - 3) more").font(.caption).foregroundStyle(.secondary)
+                            Text(money(l.amount)).font(.subheadline).monospacedDigit().foregroundStyle(.secondary)
                         }
                     }
-                    if !u.overdue.isEmpty {
-                        Label("\(u.overdue.count) past due", systemImage: "exclamationmark.circle.fill")
-                            .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.bad)
+                    if u.toPay.count > 3 {
+                        Text("and \(u.toPay.count - 3) more").font(.caption).foregroundStyle(.secondary)
                     }
                 }
+                if !u.overdue.isEmpty {
+                    Label("\(u.overdue.count) past due", systemImage: "exclamationmark.circle.fill")
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.bad)
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .card()
         }
-        .buttonStyle(.plain)
     }
 }
 
@@ -158,32 +192,29 @@ private struct SpendingCard: View {
         let lines = store.engine.lines(check.key, check.n).filter { $0.type == "expense" && !$0.skip }
         let budget = lines.reduce(0) { $0 + $1.env }
         let spent = lines.reduce(0) { $0 + $1.spent }
-        Button(action: open) {
-            VStack(alignment: .leading, spacing: 10) {
-                CardHeader(title: "Spending left", icon: "cart")
-                HStack(alignment: .firstTextBaseline) {
-                    Text(money(budget - spent)).font(.title2.bold()).monospacedDigit()
-                        .foregroundStyle(spent > budget + 0.004 ? Theme.over : .primary)
+        let over = spent > budget + 0.004
+        HomeCard(id: "home.spending", title: "Spending left", icon: "cart",
+                 summary: over ? "Over \(money(spent - budget))" : "\(money(budget - spent)) left",
+                 summaryColor: over ? Theme.over : .secondary, open: open) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(money(budget - spent)).font(.title2.bold()).monospacedDigit()
+                    .foregroundStyle(over ? Theme.over : .primary)
+                Spacer()
+                Text("of \(money(budget))").font(.subheadline).foregroundStyle(.secondary)
+            }
+            ProgressBar(value: budget > 0 ? spent / budget : 0,
+                        color: over ? Theme.over : TypeInfo.of("expense").color, height: 6)
+            ForEach(lines.prefix(4), id: \.uid) { l in
+                let o = l.spent > l.env + 0.004
+                HStack {
+                    Text(l.name).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
                     Spacer()
-                    Text("of \(money(budget))").font(.subheadline).foregroundStyle(.secondary)
-                }
-                ProgressBar(value: budget > 0 ? spent / budget : 0,
-                            color: spent > budget + 0.004 ? Theme.over : TypeInfo.of("expense").color, height: 6)
-                ForEach(lines.prefix(4), id: \.uid) { l in
-                    let over = l.spent > l.env + 0.004
-                    HStack {
-                        Text(l.name).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-                        Spacer()
-                        Text(over ? "Over \(money(l.spent - l.env))" : "\(money(l.env - l.spent)) left")
-                            .font(.subheadline).monospacedDigit()
-                            .foregroundStyle(over ? Theme.over : .secondary)
-                    }
+                    Text(o ? "Over \(money(l.spent - l.env))" : "\(money(l.env - l.spent)) left")
+                        .font(.subheadline).monospacedDigit()
+                        .foregroundStyle(o ? Theme.over : .secondary)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .card()
         }
-        .buttonStyle(.plain)
     }
 }
 
@@ -195,31 +226,28 @@ private struct DebtSummary: View {
     var body: some View {
         let debts = store.state.debts
         let total = debts.reduce(0) { $0 + store.engine.curBal($1) }
-        Button(action: open) {
-            VStack(alignment: .leading, spacing: 8) {
-                CardHeader(title: "Debt", icon: "creditcard")
-                HStack(alignment: .firstTextBaseline) {
-                    Text(money(total)).font(.title2.bold()).monospacedDigit()
-                    Spacer()
-                    Text("across \(debts.count) \(debts.count == 1 ? "debt" : "debts")")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                }
+        HomeCard(id: "home.debt", title: "Debt", icon: "creditcard", summary: money0(total), open: open) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(money(total)).font(.title2.bold()).monospacedDigit()
+                Spacer()
+                Text("across \(debts.count) \(debts.count == 1 ? "debt" : "debts")")
+                    .font(.subheadline).foregroundStyle(.secondary)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .card()
         }
-        .buttonStyle(.plain)
     }
 }
 
 /// Progress on the first few savings goals.
 private struct GoalsSummary: View {
     @EnvironmentObject var store: Store
+    let open: () -> Void
 
     var body: some View {
         let goals = store.state.goals
-        VStack(alignment: .leading, spacing: 10) {
-            CardHeader(title: "Savings goals", icon: "target")
+        let saved = goals.reduce(0) { $0 + store.engine.goalStatus($1).saved }
+        let target = goals.reduce(0) { $0 + $1.target }
+        HomeCard(id: "home.goals", title: "Savings goals", icon: "target",
+                 summary: goals.isEmpty ? "None yet" : "\(money0(saved)) of \(money0(target))", open: open) {
             if goals.isEmpty {
                 Text("Set a goal, like an emergency fund, and watch it grow each payday.")
                     .font(.subheadline).foregroundStyle(.secondary)
@@ -240,20 +268,6 @@ private struct GoalsSummary: View {
                     Text("and \(goals.count - 3) more").font(.caption).foregroundStyle(.secondary)
                 }
             }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
-    }
-}
-
-private struct CardHeader: View {
-    let title: String
-    let icon: String
-    var body: some View {
-        HStack {
-            Label(title, systemImage: icon).font(.headline).foregroundStyle(Theme.accent)
-            Spacer()
-            Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
         }
     }
 }

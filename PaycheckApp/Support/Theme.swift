@@ -74,6 +74,32 @@ struct Tag: View {
     }
 }
 
+/// Remembers which sections are folded, across launches. Stored as a comma list in
+/// @AppStorage("folded"), so every screen shares one setting.
+enum Fold {
+    static let key = "folded"
+    static func has(_ raw: String, _ id: String) -> Bool { raw.split(separator: ",").contains { $0 == id } }
+    static func toggled(_ raw: String, _ id: String) -> String {
+        var ids = raw.split(separator: ",").map(String.init)
+        if let i = ids.firstIndex(of: id) { ids.remove(at: i) } else { ids.append(id) }
+        return ids.joined(separator: ",")
+    }
+}
+
+/// Points down when open, right when folded.
+struct FoldChevron: View {
+    let folded: Bool
+    var body: some View {
+        Image(systemName: "chevron.down")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .rotationEffect(.degrees(folded ? -90 : 0))
+            .frame(width: 28, height: 28)
+            .contentShape(Rectangle())
+            .accessibilityLabel(folded ? "Expand" : "Collapse")
+    }
+}
+
 struct ProgressBar: View {
     let value: Double          // 0...1
     var color: Color = Theme.moss
