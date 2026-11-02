@@ -30,7 +30,7 @@ struct PurchasesView: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(x.buy.note.isEmpty ? "Purchase" : x.buy.note)
-                                Text("\(DU.parseISO(x.buy.date).map(DU.short) ?? ""), \(envs.first { $0.id == x.recId }?.name ?? "Spending")\(x.buy.tx != nil ? ", imported" : "")")
+                                Text("\(DU.parseISO(x.buy.date).map { DU.short($0) } ?? ""), \(envs.first { $0.id == x.recId }?.name ?? "Spending")\(x.buy.tx != nil ? ", imported" : "")")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()

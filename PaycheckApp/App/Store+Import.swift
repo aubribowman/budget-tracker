@@ -81,7 +81,7 @@ extension Store {
         var usedLines = Set<String>()
 
         update { s in
-            func edit(_ key: String, _ n: Int, _ f: (inout Cell) -> Void) {
+            @MainActor func edit(_ key: String, _ n: Int, _ f: (inout Cell) -> Void) {
                 var m = s.months[key] ?? [:]
                 var c = m[String(n)] ?? Cell()
                 f(&c)

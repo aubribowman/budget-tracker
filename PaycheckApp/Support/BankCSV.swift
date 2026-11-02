@@ -110,7 +110,7 @@ enum BankCSV {
         return out.sorted { $0.date > $1.date }
     }
 
-    private static func isAmountHeader(_ h: String) -> Bool {
+    nonisolated private static func isAmountHeader(_ h: String) -> Bool {
         h == "amount" || h.hasPrefix("amount") || h.hasSuffix(" amount") || h.hasSuffix("amount")
     }
 
