@@ -11,6 +11,7 @@ struct SettingsView: View {
     @State private var importedOK = false
     @Environment(\.dismiss) private var dismiss
     @State private var bankImport = false
+    @AppStorage(AppLock.enabledKey) private var lockOn = false
     /// Show a Done button when opened as a sheet from Home.
     var showsDone = false
 
@@ -58,6 +59,22 @@ struct SettingsView: View {
                     }
                 } header: { Text("Your data") } footer: {
                     Text("Backups use the same file as the web app, so you can move your plan between them. To bring your plan over, use Download a backup in the web app’s Setup tab, save it to Files, then import it here.")
+                }
+
+                Section {
+                    Toggle("Lock with \(AppLock.methodName)", isOn: Binding(
+                        get: { lockOn },
+                        set: { on in
+                            // Confirm it works before turning the lock on, so you can't lock yourself out.
+                            if on {
+                                Task { if await AppLock.authenticate(reason: "Turn on the app lock") { lockOn = true } }
+                            } else { lockOn = false }
+                        }))
+                    .disabled(!AppLock.available && !lockOn)
+                } header: { Text("Privacy") } footer: {
+                    Text(AppLock.available
+                         ? "Asks for \(AppLock.methodName) each time you come back to the app, and hides your balances in the app switcher."
+                         : "Set up Face ID or a passcode in the Settings app to use this.")
                 }
 
                 Section("Appearance") {

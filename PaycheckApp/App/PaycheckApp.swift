@@ -21,8 +21,37 @@ struct RootView: View {
     @EnvironmentObject var store: Store
     @Environment(\.scenePhase) private var phase
     @State private var tab: AppTab = .home
+    @AppStorage(AppLock.enabledKey) private var lockOn = false
+    @State private var locked = UserDefaults.standard.bool(forKey: AppLock.enabledKey)
+    @State private var unlocking = false
 
     var body: some View {
+        tabs
+            .overlay {
+                // Cover the app while locked, and in the app switcher so balances stay private.
+                if lockOn && (locked || phase != .active) {
+                    LockScreen { unlock() }.transition(.opacity)
+                }
+            }
+            .task { if locked { unlock() } }
+            .onChange(of: phase) { _, p in
+                if p == .background && lockOn { locked = true }
+                if p == .active && locked { unlock() }
+            }
+    }
+
+    private func unlock() {
+        guard lockOn else { locked = false; return }
+        guard !unlocking else { return }
+        unlocking = true
+        Task {
+            let ok = await AppLock.authenticate()
+            withAnimation { if ok { locked = false } }
+            unlocking = false
+        }
+    }
+
+    private var tabs: some View {
         TabView(selection: $tab) {
             HomeView(tab: $tab)
                 .tabItem { Label("Home", systemImage: "house") }
@@ -37,7 +66,7 @@ struct RootView: View {
                 .tabItem { Label("Month", systemImage: "chart.pie") }
                 .tag(AppTab.month)
             DebtView()
-                .tabItem { Label("Debt", systemImage: "creditcard") }
+                .tabItem { Label("Payoff", systemImage: "flag.checkered") }
                 .tag(AppTab.debt)
         }
         .onChange(of: phase) { _, p in

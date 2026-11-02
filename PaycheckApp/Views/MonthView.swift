@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MonthView: View {
     @EnvironmentObject var store: Store
+    @State private var reviewing = false
 
     var body: some View {
         let e = store.engine
@@ -86,8 +87,15 @@ struct MonthView: View {
                 .padding()
             }
             .background(Theme.bg)
-            .toolbar { ToolbarItem(placement: .principal) { MonthBar() } }
+            .toolbar {
+                ToolbarItem(placement: .principal) { MonthBar() }
+                ToolbarItem(placement: .primaryAction) {
+                    Button { reviewing = true } label: { Image(systemName: "list.bullet.clipboard") }
+                        .accessibilityLabel("Review this month")
+                }
+            }
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $reviewing) { MonthlyReviewView(month: store.month) }
         }
     }
 

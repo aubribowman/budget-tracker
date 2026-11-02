@@ -53,7 +53,10 @@ final class Store: ObservableObject {
             } catch {
                 self?.lastError = "Couldn’t save: \(error.localizedDescription)"
             }
-            if let e = self?.engine { await Notifier.reschedule(e) }
+            if let e = self?.engine {
+                WidgetSync.write(e, goals: snapshot.goals)
+                await Notifier.reschedule(e)
+            }
         }
     }
 
@@ -212,6 +215,72 @@ final class Store: ObservableObject {
         update { s in
             s.debts.removeAll { $0.id == id }
             for i in s.recurring.indices where s.recurring[i].debtId == id { s.recurring[i].debtId = "" }
+        }
+    }
+
+    func saveLoan(_ l: Loan) {
+        update { s in
+            if let i = s.loans.firstIndex(where: { $0.id == l.id }) { s.loans[i] = l } else { s.loans.append(l) }
+        }
+        syncLoanPlanLine()
+    }
+    func deleteLoan(_ id: String) {
+        update { $0.loans.removeAll { $0.id == id } }
+        syncLoanPlanLine()
+    }
+
+    /// Adds or removes the "Student loans" line on paychecks.
+    func setLoanPlanLine(on: Bool) {
+        update { s in
+            if on {
+                guard !s.recurring.contains(where: { $0.loanPlan }) else { return }
+                var r = Recurring()
+                r.name = "Student loans"; r.type = "debt"; r.when = "1"; r.loanPlan = true
+                s.recurring.append(r)
+            } else {
+                s.recurring.removeAll { $0.loanPlan }
+            }
+        }
+        syncLoanPlanLine()
+    }
+
+    func setLoanPlan(payment: Double, start: String) {
+        update { s in s.loanPlan.payment = max(0, r2(payment)); s.loanPlan.start = start }
+        syncLoanPlanLine()
+    }
+
+    /// Keeps the paycheck line's amount and start month in step with the plan.
+    private func syncLoanPlanLine() {
+        let sim = engine.simulateLoans()
+        let firstRepay = state.loans.map { engine.repayMonth($0) }.min() ?? DU.ym(Date())
+        let start = state.loanPlan.start.count >= 7 ? String(state.loanPlan.start.prefix(7)) : firstRepay
+        update { s in
+            guard let i = s.recurring.firstIndex(where: { $0.loanPlan }) else { return }
+            if s.loans.isEmpty { s.recurring.remove(at: i); return }
+            s.recurring[i].amount = sim.monthly
+            s.recurring[i].start = start
+        }
+    }
+
+    /// Puts a one-time windfall straight onto balances: debts and loans go down,
+    /// goals go up, each starting fresh from today.
+    func applyWindfall(debts: [String: Double], loans: [String: Double], goals: [String: Double]) {
+        let e = engine
+        let loanBal = e.loanBalances()
+        let today = DU.iso(DU.today)
+        update { s in
+            for i in s.debts.indices {
+                guard let a = debts[s.debts[i].id], a > 0.004 else { continue }
+                s.debts[i].balance = max(0, r2(e.curBal(s.debts[i]) - a)); s.debts[i].asOf = today
+            }
+            for i in s.loans.indices {
+                guard let a = loans[s.loans[i].id], a > 0.004 else { continue }
+                s.loans[i].balance = max(0, r2((loanBal[s.loans[i].id] ?? s.loans[i].balance) - a)); s.loans[i].asOf = today
+            }
+            for i in s.goals.indices {
+                guard let a = goals[s.goals[i].id], a > 0.004 else { continue }
+                s.goals[i].balance = r2(e.goalStatus(s.goals[i]).saved + a); s.goals[i].asOf = today
+            }
         }
     }
 

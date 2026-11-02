@@ -11,7 +11,16 @@ A native SwiftUI version of your Paycheck Plan web app. It reads the same backup
 - **Setup** with pay schedule (semi-monthly, biweekly, or biweekly then semi-monthly), recurring items, backup import and export, and appearance.
 - **Reminders**: a notification the day before each unpaid bill is due, and one on payday.
 
-Coming in later phases: CSV bank import, Goals, student loans and the Payoff tab, the monthly review, windfall planner, utilization details, home screen widgets, and Face ID.
+## Added since Phase 1
+
+- **Home** tab with this paycheck, bills due, spending, debt and goals at a glance. Cards fold to one line.
+- **Bank import** from a CSV file (Chase, Bank of America, Capital One, Wells Fargo, Crew and most others), with rules it remembers.
+- **Savings goals** with progress, monthly pace, and on-track checks.
+- **Payoff** tab: debts, **student loans** (interest before repayment, standard payments, a payment plan on your paychecks), and **credit utilization** details.
+- **Monthly review** from the Month tab, with a nudge on Home early each month.
+- **Windfall planner** for refunds and bonuses: suggests a split and shows what it changes.
+- **Home and Lock Screen widgets** (the `PaycheckWidget` target, sharing data through the App Group `group.com.aubribowman.PaycheckApp`).
+- **Face ID lock**, turned on in Setup → Privacy.
 
 ## Build it
 

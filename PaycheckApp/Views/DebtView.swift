@@ -4,6 +4,7 @@ struct DebtView: View {
     @EnvironmentObject var store: Store
     @State private var editing: Debt?
     @State private var extraText = ""
+    @AppStorage("payoffSection") private var section = "debts"
 
     var body: some View {
         let e = store.engine
@@ -15,6 +16,14 @@ struct DebtView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
+                    Picker("Section", selection: $section) {
+                        Text("Debts").tag("debts"); Text("Student loans").tag("loans")
+                    }
+                    .pickerStyle(.segmented)
+
+                    if section == "loans" {
+                        StudentLoansSection()
+                    } else {
                     // Headline
                     VStack(alignment: .leading, spacing: 8) {
                         Text("\(money(total)) left across \(ranked.count) debts").font(.caption).foregroundStyle(.secondary)
@@ -59,6 +68,8 @@ struct DebtView: View {
                     }
                     .card()
 
+                    UtilizationCard()
+
                     ExtraLineCard()
 
                     // Debts
@@ -94,11 +105,12 @@ struct DebtView: View {
                         .buttonStyle(.plain)
                     }
                     Button { var d = Debt(); d.asOf = DU.iso(Date()); editing = d } label: { Label("Add a debt", systemImage: "plus") }
+                    }
                 }
                 .padding()
             }
             .background(Theme.bg)
-            .navigationTitle("Debt")
+            .navigationTitle("Payoff")
             .sheet(item: $editing) { d in DebtEditSheet(debt: d) }
             .onAppear { extraText = String(format: "%.2f", store.state.extra) }
             .toolbar { ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Done") { commitExtra(); hideKeyboard() } } }

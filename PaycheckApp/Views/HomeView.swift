@@ -7,6 +7,9 @@ struct HomeView: View {
     @State private var adding = false
     @State private var showSetup = false
     @State private var showGoals = false
+    @State private var reviewMonth: String?
+    @State private var windfall = false
+    @AppStorage(Review.key) private var reviewed = ""
 
     var envs: [Recurring] { store.state.recurring.filter { $0.type == "expense" } }
 
@@ -20,6 +23,9 @@ struct HomeView: View {
                         let e = store.engine
                         let u = e.upcoming()
                         PaycheckSummary(u: u)
+                        if let m = Review.pending(store, reviewed: reviewed) {
+                            ReviewPrompt(month: m) { reviewMonth = m }
+                        }
                         DueCard(u: u) { tab = .paychecks }
                         if let c = u.cur, !envs.isEmpty {
                             SpendingCard(check: c) { tab = .purchases }
@@ -37,6 +43,13 @@ struct HomeView: View {
                             }
                             .buttonStyle(.borderedProminent)
                         }
+                        Button { windfall = true } label: {
+                            Label("Got extra money? Plan it", systemImage: "sparkles")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 4)
+                        }
+                        .buttonStyle(.bordered)
                     }
                 }
                 .padding()
@@ -51,6 +64,10 @@ struct HomeView: View {
             }
             .sheet(isPresented: $adding) { AddPurchaseSheet(envs: envs, preset: nil) }
             .sheet(isPresented: $showSetup) { SettingsView(showsDone: true) }
+            .sheet(item: Binding(get: { reviewMonth.map { IdentifiedMonth(id: $0) } }, set: { reviewMonth = $0?.id })) { m in
+                MonthlyReviewView(month: m.id)
+            }
+            .sheet(isPresented: $windfall) { WindfallView() }
             .navigationDestination(isPresented: $showGoals) { GoalsView() }
         }
     }
@@ -269,5 +286,29 @@ private struct GoalsSummary: View {
                 }
             }
         }
+    }
+}
+
+private struct IdentifiedMonth: Identifiable { let id: String }
+
+/// Early in the month: a nudge to look back at last month.
+private struct ReviewPrompt: View {
+    let month: String
+    let open: () -> Void
+    var body: some View {
+        Button(action: open) {
+            HStack(spacing: 12) {
+                Image(systemName: "list.bullet.clipboard").font(.title2).foregroundStyle(Theme.accent)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Your \(DU.monthName(month)) review is ready").font(.headline)
+                    Text("See how the month went in a minute.").font(.subheadline).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .card()
+        }
+        .buttonStyle(.plain)
     }
 }
