@@ -15,22 +15,30 @@ struct PaycheckPlanApp: App {
     }
 }
 
+enum AppTab: Hashable { case home, paychecks, purchases, month, debt }
+
 struct RootView: View {
     @EnvironmentObject var store: Store
     @Environment(\.scenePhase) private var phase
+    @State private var tab: AppTab = .home
 
     var body: some View {
-        TabView {
+        TabView(selection: $tab) {
+            HomeView(tab: $tab)
+                .tabItem { Label("Home", systemImage: "house") }
+                .tag(AppTab.home)
             PaychecksView()
                 .tabItem { Label("Paychecks", systemImage: "banknote") }
+                .tag(AppTab.paychecks)
             PurchasesView()
                 .tabItem { Label("Purchases", systemImage: "cart") }
+                .tag(AppTab.purchases)
             MonthView()
                 .tabItem { Label("Month", systemImage: "chart.pie") }
+                .tag(AppTab.month)
             DebtView()
                 .tabItem { Label("Debt", systemImage: "creditcard") }
-            SettingsView()
-                .tabItem { Label("Setup", systemImage: "gearshape") }
+                .tag(AppTab.debt)
         }
         .onChange(of: phase) { _, p in
             // Refresh "today"-based numbers (autopay, safe to spend) when the app comes back.

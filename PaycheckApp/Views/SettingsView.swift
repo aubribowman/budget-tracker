@@ -9,6 +9,10 @@ struct SettingsView: View {
     @State private var importing = false
     @State private var exportURL: URL?
     @State private var importedOK = false
+    @Environment(\.dismiss) private var dismiss
+    @State private var bankImport = false
+    /// Show a Done button when opened as a sheet from Home.
+    var showsDone = false
 
     var body: some View {
         NavigationStack {
@@ -37,6 +41,15 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Button { bankImport = true } label: { Label("Import from bank (CSV)", systemImage: "building.columns") }
+                        .disabled(store.isEmpty)
+                } header: { Text("Bank transactions") } footer: {
+                    Text(store.isEmpty
+                         ? "Set up your budget or import a backup first, so transactions have somewhere to go."
+                         : "Adds purchases and marks bills paid from a file you download from your bank. Your choices are remembered for next time.")
+                }
+
+                Section {
                     Button { importing = true } label: { Label("Import a backup", systemImage: "square.and.arrow.down") }
                     if let url = exportURL {
                         ShareLink(item: url) { Label("Share backup file", systemImage: "square.and.arrow.up") }
@@ -54,6 +67,12 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Setup")
+            .sheet(isPresented: $bankImport) { BankImportView() }
+            .toolbar {
+                if showsDone {
+                    ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                }
+            }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.json, .data]) { result in
                 guard case .success(let url) = result else { return }
                 let ok = url.startAccessingSecurityScopedResource()
@@ -234,6 +253,12 @@ struct RecurringEditSheet: View {
                     Picker("Debt", selection: $item.debtId) {
                         Text("Not linked").tag("")
                         ForEach(store.state.debts) { Text($0.name).tag($0.id) }
+                    }
+                }
+                if item.type == "savings" && !store.state.goals.isEmpty {
+                    Picker("Goal", selection: $item.goalId) {
+                        Text("Not linked").tag("")
+                        ForEach(store.state.goals) { Text($0.name).tag($0.id) }
                     }
                 }
                 if !isNew {

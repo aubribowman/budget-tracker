@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import Combine
 
 /// Holds the budget, saves it to the phone, and applies every change.
 @MainActor
@@ -211,6 +212,18 @@ final class Store: ObservableObject {
         update { s in
             s.debts.removeAll { $0.id == id }
             for i in s.recurring.indices where s.recurring[i].debtId == id { s.recurring[i].debtId = "" }
+        }
+    }
+
+    func saveGoal(_ g: Goal) {
+        update { s in
+            if let i = s.goals.firstIndex(where: { $0.id == g.id }) { s.goals[i] = g } else { s.goals.append(g) }
+        }
+    }
+    func deleteGoal(_ id: String) {
+        update { s in
+            s.goals.removeAll { $0.id == id }
+            for i in s.recurring.indices where s.recurring[i].goalId == id { s.recurring[i].goalId = "" }
         }
     }
 

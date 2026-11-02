@@ -3,6 +3,7 @@ import SwiftUI
 struct PurchasesView: View {
     @EnvironmentObject var store: Store
     @State private var adding = false
+    @State private var bankImport = false
     @State private var filter: String? = nil
 
     var envs: [Recurring] { store.state.recurring.filter { $0.type == "expense" } }
@@ -14,11 +15,8 @@ struct PurchasesView: View {
         NavigationStack {
             List {
                 Section {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 10) {
-                            ForEach(envs) { r in categoryCard(r) }
-                        }
-                        .padding(.vertical, 4)
+                    VStack(spacing: 8) {
+                        ForEach(envs) { r in categoryCard(r) }
                     }
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                     .listRowBackground(Color.clear)
@@ -59,10 +57,16 @@ struct PurchasesView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .principal) { MonthBar() }
-                ToolbarItem(placement: .primaryAction) { Button { adding = true } label: { Image(systemName: "plus") } }
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button { adding = true } label: { Label("Log a purchase", systemImage: "square.and.pencil") }
+                        Button { bankImport = true } label: { Label("Import from bank", systemImage: "building.columns") }
+                    } label: { Image(systemName: "plus") }
+                }
             }
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $adding) { AddPurchaseSheet(envs: envs, preset: filter) }
+            .sheet(isPresented: $bankImport) { BankImportView() }
         }
     }
 
@@ -75,13 +79,17 @@ struct PurchasesView: View {
         let on = filter == r.id
         return Button { filter = on ? nil : r.id } label: {
             VStack(alignment: .leading, spacing: 6) {
-                Text(r.name).font(.caption.weight(.semibold)).lineLimit(1)
-                Text(over ? "Over \(money(spent - budget))" : "\(money(budget - spent)) left")
-                    .font(.headline).foregroundStyle(over ? Theme.over : .primary)
+                HStack(alignment: .firstTextBaseline) {
+                    Text(r.name).font(.subheadline.weight(.semibold)).lineLimit(1)
+                    Spacer()
+                    Text(over ? "Over \(money(spent - budget))" : "\(money(budget - spent)) left")
+                        .font(.headline).monospacedDigit().foregroundStyle(over ? Theme.over : .primary)
+                }
                 ProgressBar(value: budget > 0 ? spent / budget : 0, color: over ? Theme.over : TypeInfo.of("expense").color, height: 6)
                 Text("\(money(spent)) of \(money(budget))").font(.caption2).foregroundStyle(.secondary)
             }
-            .frame(width: 160, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
             .padding(12)
             .background(Theme.card, in: RoundedRectangle(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(on ? Theme.accent : .clear, lineWidth: 2))
