@@ -2,6 +2,28 @@
 
 A native SwiftUI version of the Paycheck Plan web app. It plans your budget one paycheck at a time: which bills each paycheck covers, what's left to spend, and how fast your debt and loans go away. It reads the same backup file as the web app, so your budget moves over in one step.
 
+## Screenshots
+
+Shown with sample data.
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/home.png" width="220" alt="Home"><br><sub>Home</sub></td>
+    <td align="center"><img src="docs/screenshots/paychecks.png" width="220" alt="Paychecks"><br><sub>Paychecks</sub></td>
+    <td align="center"><img src="docs/screenshots/purchases.png" width="220" alt="Purchases"><br><sub>Purchases</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/month.png" width="220" alt="Month"><br><sub>Month</sub></td>
+    <td align="center"><img src="docs/screenshots/review.png" width="220" alt="Monthly review"><br><sub>Monthly review</sub></td>
+    <td align="center"><img src="docs/screenshots/payoff.png" width="220" alt="Payoff: debts"><br><sub>Payoff: debts and utilization</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/loans.png" width="220" alt="Payoff: student loans"><br><sub>Payoff: student loans</sub></td>
+    <td align="center"><img src="docs/screenshots/goals.png" width="220" alt="Savings goals"><br><sub>Savings goals</sub></td>
+    <td align="center"><img src="docs/screenshots/widget.png" width="180" alt="Home screen widget"><br><sub>Home screen widget</sub></td>
+  </tr>
+</table>
+
 ## What's in the app
 
 ### Tabs
@@ -107,6 +129,7 @@ PaycheckApp/              The app
   Views/                  One file per screen
   Assets.xcassets         App icon (light and dark) and colors
 PaycheckWidget/           Home and lock screen widgets
+docs/screenshots/         Screenshots used in this README
 PaycheckWidget-Info.plist Widget settings
 *.entitlements            App Group that lets the app and widget share data, and Mac file access for sync
 ```

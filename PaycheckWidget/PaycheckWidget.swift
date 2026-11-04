@@ -96,7 +96,7 @@ struct PaycheckWidgetView: View {
             if s.pastDue > 0 {
                 Label("\(s.pastDue) past due", systemImage: "exclamationmark.circle.fill").font(.caption2.weight(.semibold)).foregroundStyle(rosy)
             } else if s.billsDue > 0 {
-                Text("\(s.billsDue) bills, \(money(s.billsDueAmount, cents: false)) due").font(.caption2).foregroundStyle(.secondary)
+                Text("\(s.billsDue) \(s.billsDue == 1 ? "bill" : "bills"), \(money(s.billsDueAmount, cents: false)) due").font(.caption2).foregroundStyle(.secondary)
             } else {
                 Text("All caught up").font(.caption2).foregroundStyle(moss)
             }
@@ -133,7 +133,7 @@ struct PaycheckWidgetView: View {
     func lockRect(_ s: WidgetSummary) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text("\(money(s.left)) left").font(.headline).widgetAccentable()
-            Text(s.pastDue > 0 ? "\(s.pastDue) past due" : s.billsDue > 0 ? "\(s.billsDue) bills due" : "All caught up").font(.caption)
+            Text(s.pastDue > 0 ? "\(s.pastDue) past due" : s.billsDue > 0 ? "\(s.billsDue) \(s.billsDue == 1 ? "bill" : "bills") due" : "All caught up").font(.caption)
             Text("Payday \(daysAway(s.nextPayday))").font(.caption)
         }
     }
