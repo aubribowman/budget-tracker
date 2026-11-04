@@ -16,6 +16,7 @@ struct PaycheckPlanApp: App {
         #if os(macOS)
         // Open at a phone-like size; the cards are designed for a narrow column.
         .defaultSize(width: 760, height: 900)
+        .commands { ZoomCommands() }
         #endif
     }
 }
@@ -32,6 +33,7 @@ struct RootView: View {
 
     var body: some View {
         tabs
+            .macZoom()
             .overlay {
                 // Cover the app while locked, and in the app switcher so balances stay private.
                 if lockOn && (locked || phase != .active) {

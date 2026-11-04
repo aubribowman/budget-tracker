@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct SettingsView: View {
     @EnvironmentObject var store: Store
     @AppStorage("appearance") private var appearance = "auto"
+    @AppStorage(Zoom.key) private var zoom = 1.0
     @AppStorage(Notifier.enabledKey) private var remindersOn = false
     @AppStorage(Notifier.hourKey) private var reminderHour = 9
     @State private var importing = false
@@ -85,6 +86,11 @@ struct SettingsView: View {
                     Picker("Theme", selection: $appearance) {
                         Text("Match my device").tag("auto"); Text("Light").tag("light"); Text("Dark").tag("dark")
                     }
+                    #if os(macOS)
+                    Picker("Zoom", selection: $zoom) {
+                        ForEach(Zoom.levels, id: \.self) { Text(Zoom.label($0)).tag($0) }
+                    }
+                    #endif
                 }
             }
             .navigationTitle("Setup")

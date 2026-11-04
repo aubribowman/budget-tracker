@@ -28,11 +28,21 @@ extension View {
     }
 
     /// Mac: sheets shrink to fit their content, so give them a sensible size and the
-    /// iPhone-style grouped form look.
+    /// iPhone-style grouped form look. Sheets are their own windows, so they get the zoom too.
     func macSheet() -> some View {
         #if os(macOS)
         formStyle(.grouped)
+            .macZoom()
             .frame(minWidth: 460, idealWidth: 540, minHeight: 480, idealHeight: 680)
+        #else
+        self
+        #endif
+    }
+
+    /// Mac: View → Zoom In / Zoom Out. Does nothing on iPhone, which has its own text size setting.
+    func macZoom() -> some View {
+        #if os(macOS)
+        modifier(MacZoom())
         #else
         self
         #endif
@@ -101,3 +111,60 @@ enum SystemColor {
         #endif
     }
 }
+
+// MARK: - Mac zoom
+
+/// Zoom levels for View → Zoom In / Zoom Out on Mac, like a web browser's.
+enum Zoom {
+    static let key = "macZoom"
+    static let levels: [Double] = [0.75, 0.85, 1.0, 1.15, 1.3, 1.5, 1.75, 2.0]
+
+    static func step(_ current: Double, by delta: Int) -> Double {
+        let i = levels.firstIndex { $0 >= current - 0.001 } ?? levels.firstIndex(of: 1.0)!
+        return levels[max(0, min(levels.count - 1, i + delta))]
+    }
+
+    static func label(_ z: Double) -> String { "\(Int((z * 100).rounded()))%" }
+}
+
+#if os(macOS)
+/// Browser-style zoom: lays the screen out as if the window were smaller (or bigger),
+/// then scales it to fill the window. Text re-flows the way it does in Safari, and
+/// clicks still land in the right place. Text size settings don't apply on Mac, so this
+/// is the way to make everything bigger.
+private struct MacZoom: ViewModifier {
+    @AppStorage(Zoom.key) private var zoom = 1.0
+
+    func body(content: Content) -> some View {
+        // Same structure at every zoom (100% included), so zooming never resets the
+        // current tab or scroll position.
+        GeometryReader { g in
+            content
+                .frame(width: g.size.width / zoom, height: g.size.height / zoom)
+                .scaleEffect(zoom, anchor: .topLeading)
+                .frame(width: g.size.width, height: g.size.height, alignment: .topLeading)
+        }
+    }
+}
+
+/// The View menu items and their shortcuts.
+struct ZoomCommands: Commands {
+    @AppStorage(Zoom.key) private var zoom = 1.0
+
+    var body: some Commands {
+        CommandGroup(after: .toolbar) {
+            Divider()
+            Button("Zoom In") { zoom = Zoom.step(zoom, by: 1) }
+                .keyboardShortcut("=", modifiers: .command)
+                .disabled(zoom >= Zoom.levels.last! - 0.001)
+            Button("Zoom Out") { zoom = Zoom.step(zoom, by: -1) }
+                .keyboardShortcut("-", modifiers: .command)
+                .disabled(zoom <= Zoom.levels.first! + 0.001)
+            Button("Actual Size") { zoom = 1 }
+                .keyboardShortcut("0", modifiers: .command)
+                .disabled(abs(zoom - 1) < 0.001)
+            Divider()
+        }
+    }
+}
+#endif
