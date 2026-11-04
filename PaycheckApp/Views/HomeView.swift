@@ -17,6 +17,13 @@ struct HomeView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
+                    #if os(macOS)
+                    // Mac windows don't show the big iPhone-style title, so put the greeting on the page.
+                    Text(greeting)
+                        .font(.largeTitle.bold())
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 4)
+                    #endif
                     if store.isEmpty {
                         EmptyStart()
                     } else {
@@ -74,11 +81,14 @@ struct HomeView: View {
     }
 
     var greeting: String {
+        let hello: String
         switch Calendar.current.component(.hour, from: Date()) {
-        case 5..<12: return "Good morning"
-        case 12..<17: return "Good afternoon"
-        default: return "Good evening"
+        case 5..<12: hello = "Good morning"
+        case 12..<17: hello = "Good afternoon"
+        default: hello = "Good evening"
         }
+        let name = store.state.settings.firstName.trimmingCharacters(in: .whitespaces)
+        return name.isEmpty ? hello : "\(hello), \(name)"
     }
 }
 

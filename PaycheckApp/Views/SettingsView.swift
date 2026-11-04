@@ -15,12 +15,21 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var bankImport = false
     @AppStorage(AppLock.enabledKey) private var lockOn = false
+    @State private var firstName = ""
     /// Show a Done button when opened as a sheet from Home.
     var showsDone = false
 
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    TextField("First name", text: $firstName)
+                        .textContentType(.givenName)
+                        .onSubmit(saveName)
+                } header: { Text("You") } footer: {
+                    Text("Used to greet you on Home.")
+                }
+
                 Section("Pay schedule") {
                     NavigationLink("Paydays and take-home") { ScheduleView() }
                     NavigationLink("Recurring bills and spending") { RecurringListView() }
@@ -94,6 +103,8 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Setup")
+            .onAppear { firstName = store.state.settings.firstName }
+            .onDisappear(perform: saveName)
             .sheet(isPresented: $bankImport) { BankImportView().macSheet() }
             .toolbar {
                 if showsDone {
@@ -124,6 +135,11 @@ struct SettingsView: View {
         } else {
             Task { await store.pushThisDevice() }
         }
+    }
+
+    func saveName() {
+        let n = firstName.trimmingCharacters(in: .whitespaces)
+        if n != store.state.settings.firstName { store.settings { $0.firstName = n } }
     }
 
     func hourLabel(_ h: Int) -> String { h == 12 ? "12 PM" : h > 12 ? "\(h - 12) PM" : "\(h) AM" }

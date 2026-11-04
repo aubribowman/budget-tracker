@@ -51,6 +51,7 @@ struct BudgetSettings: Codable, Equatable {
     var payAheadCatchUp: Bool = false
     var upCollapsed: Bool = false
     var rollLoans: Bool = true
+    var firstName: String = ""            // for the Home greeting
 
     init() {}
 
@@ -73,6 +74,7 @@ struct BudgetSettings: Codable, Equatable {
         payAheadCatchUp = c.bool(.payAheadCatchUp) ?? false
         upCollapsed = c.bool(.upCollapsed) ?? false
         rollLoans = c.bool(.rollLoans) ?? true
+        firstName = c.str(.firstName) ?? ""
     }
 }
 
