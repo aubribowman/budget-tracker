@@ -21,40 +21,46 @@ struct PurchasesView: View {
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                     .listRowBackground(Color.clear)
                 }
+                #if os(macOS)
+                // Mac: one rounded card holding every purchase, like the other tabs.
                 Section {
-                    if shown.isEmpty {
-                        Text("No purchases logged\(filter == nil ? "" : " in this category") for \(DU.monthLabel(store.month)) yet. Tap + to add one.")
-                            .foregroundStyle(.secondary).font(.subheadline)
-                    }
-                    ForEach(shown) { x in
+                    VStack(alignment: .leading, spacing: 0) {
                         HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(x.buy.note.isEmpty ? "Purchase" : x.buy.note)
-                                Text("\(DU.parseISO(x.buy.date).map { DU.short($0) } ?? ""), \(envs.first { $0.id == x.recId }?.name ?? "Spending")\(x.buy.tx != nil ? ", imported" : "")")
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
+                            Text(listTitle).font(.headline)
                             Spacer()
-                            Text(money(abs(x.buy.amt))).monospacedDigit().foregroundStyle(x.buy.amt < 0 ? Theme.good : .primary)
+                            Text(money(shown.reduce(0) { $0 + $1.buy.amt })).font(.headline).monospacedDigit()
                         }
-                        .swipeActions {
-                            Button(role: .destructive) { store.deletePurchase(key: x.check.key, n: x.check.n, recId: x.recId, buyId: x.buy.id) } label: { Label("Delete", systemImage: "trash") }
+                        .padding(.bottom, 8)
+                        if shown.isEmpty { emptyText.padding(.vertical, 6) }
+                        ForEach(Array(shown.enumerated()), id: \.element.id) { i, x in
+                            if i > 0 { Divider() }
+                            purchaseRow(x).padding(.vertical, 8)
                         }
-                        .contextMenu {
-                            Menu("Move to category") {
-                                ForEach(envs) { r in
-                                    Button(r.name) { store.movePurchase(key: x.check.key, n: x.check.n, from: x.recId, to: r.id, buyId: x.buy.id) }
-                                }
+                    }
+                    .card()
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 16, trailing: 16))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                }
+                #else
+                Section {
+                    if shown.isEmpty { emptyText }
+                    ForEach(shown) { x in
+                        purchaseRow(x)
+                            .swipeActions {
+                                Button(role: .destructive) { delete(x) } label: { Label("Delete", systemImage: "trash") }
                             }
-                        }
                     }
                 } header: {
                     HStack {
-                        Text(filter.flatMap { f in envs.first { $0.id == f }?.name } ?? "All purchases")
+                        Text(listTitle)
                         Spacer()
                         Text(money(shown.reduce(0) { $0 + $1.buy.amt }))
                     }
                 }
+                #endif
             }
+            .macListLook()
             .toolbar {
                 ToolbarItem(placement: .principal) { MonthBar() }
                 ToolbarItem(placement: .primaryAction) {
@@ -67,6 +73,38 @@ struct PurchasesView: View {
             .inlineTitle()
             .sheet(isPresented: $adding) { AddPurchaseSheet(envs: envs, preset: filter).macSheet() }
             .sheet(isPresented: $bankImport) { BankImportView().macSheet() }
+        }
+    }
+
+    var listTitle: String { filter.flatMap { f in envs.first { $0.id == f }?.name } ?? "All purchases" }
+
+    var emptyText: some View {
+        Text("No purchases logged\(filter == nil ? "" : " in this category") for \(DU.monthLabel(store.month)) yet. Tap + to add one.")
+            .foregroundStyle(.secondary).font(.subheadline)
+    }
+
+    func delete(_ x: BuyEntry) {
+        store.deletePurchase(key: x.check.key, n: x.check.n, recId: x.recId, buyId: x.buy.id)
+    }
+
+    func purchaseRow(_ x: BuyEntry) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(x.buy.note.isEmpty ? "Purchase" : x.buy.note)
+                Text("\(DU.parseISO(x.buy.date).map { DU.short($0) } ?? ""), \(envs.first { $0.id == x.recId }?.name ?? "Spending")\(x.buy.tx != nil ? ", imported" : "")")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Text(money(abs(x.buy.amt))).monospacedDigit().foregroundStyle(x.buy.amt < 0 ? Theme.good : .primary)
+        }
+        .contentShape(Rectangle())
+        .contextMenu {
+            Menu("Move to category") {
+                ForEach(envs) { r in
+                    Button(r.name) { store.movePurchase(key: x.check.key, n: x.check.n, from: x.recId, to: r.id, buyId: x.buy.id) }
+                }
+            }
+            Button(role: .destructive) { delete(x) } label: { Label("Delete", systemImage: "trash") }
         }
     }
 

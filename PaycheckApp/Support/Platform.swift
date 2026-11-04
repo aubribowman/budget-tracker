@@ -27,6 +27,15 @@ extension View {
         #endif
     }
 
+    /// Mac: a list on the same gray background as the card screens, kept to a readable width.
+    func macListLook() -> some View {
+        #if os(macOS)
+        scrollContentBackground(.hidden).readableWidth().background(SystemColor.bg)
+        #else
+        self
+        #endif
+    }
+
     /// Mac: sheets shrink to fit their content, so give them a sensible size and the
     /// iPhone-style grouped form look. Sheets are their own windows, so they get the zoom too.
     func macSheet() -> some View {
@@ -95,8 +104,10 @@ enum SystemColor {
     static let bg = Color(UIColor.systemGroupedBackground)
     static let track = Color(UIColor.tertiarySystemFill)
     #else
-    static let card = Color(NSColor.controlBackgroundColor)
-    static let bg = Color(NSColor.windowBackgroundColor)
+    // The iPhone's grouped colors. The Mac's own window color is nearly white, so
+    // white cards would disappear into it.
+    static let card = adaptive(light: Color(red: 1, green: 1, blue: 1), dark: Color(red: 0.17, green: 0.17, blue: 0.18))
+    static let bg = adaptive(light: Color(red: 0.949, green: 0.949, blue: 0.969), dark: Color(red: 0.11, green: 0.11, blue: 0.118))
     static let track = Color(NSColor.quaternaryLabelColor)
     #endif
 

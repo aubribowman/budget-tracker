@@ -55,6 +55,11 @@ struct CardStyle: ViewModifier {
         content
             .padding(16)
             .background(Theme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            #if os(macOS)
+            // A faint edge and shadow so cards read as containers on a big screen.
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Color.primary.opacity(0.06)))
+            .shadow(color: .black.opacity(0.05), radius: 6, y: 2)
+            #endif
     }
 }
 extension View {
