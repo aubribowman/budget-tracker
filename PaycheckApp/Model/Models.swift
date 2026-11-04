@@ -196,13 +196,42 @@ struct Buy: Codable, Identifiable, Equatable {
     }
 }
 
+/// Money coming in on top of a paycheck, like a side job or a reimbursement.
+/// The web app keeps it in the file but doesn't count it yet.
+struct IncomeItem: Codable, Identifiable, Equatable {
+    var id: String = "i" + UUID().uuidString.prefix(7).lowercased()
+    var name: String = ""
+    var amount: Double = 0
+
+    init() {}
+
+    init(from d: Decoder) throws {
+        let c = try d.container(keyedBy: CodingKeys.self)
+        id = c.str(.id) ?? "i" + UUID().uuidString.prefix(7).lowercased()
+        name = c.str(.name) ?? ""
+        amount = c.dbl(.amount) ?? 0
+    }
+}
+
 struct Cell: Codable, Equatable {
     var income: Double? = nil
     var ov: [String: Override] = [:]
     var extras: [OneTime] = []
     var buys: [String: [Buy]] = [:]
+    var addIncome: [IncomeItem] = []
+
+    enum CodingKeys: String, CodingKey { case income, ov, extras, buys, addIncome }
 
     init() {}
+
+    func encode(to en: Encoder) throws {
+        var c = en.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(income, forKey: .income)
+        try c.encode(ov, forKey: .ov)
+        try c.encode(extras, forKey: .extras)
+        try c.encode(buys, forKey: .buys)
+        if !addIncome.isEmpty { try c.encode(addIncome, forKey: .addIncome) }
+    }
 
     init(from d: Decoder) throws {
         let c = try d.container(keyedBy: CodingKeys.self)
@@ -210,6 +239,7 @@ struct Cell: Codable, Equatable {
         ov = (try? c.decodeIfPresent([String: Override].self, forKey: .ov)) ?? [:]
         extras = (try? c.decodeIfPresent([OneTime].self, forKey: .extras)) ?? []
         buys = (try? c.decodeIfPresent([String: [Buy]].self, forKey: .buys)) ?? [:]
+        addIncome = (try? c.decodeIfPresent([IncomeItem].self, forKey: .addIncome)) ?? []
     }
 }
 

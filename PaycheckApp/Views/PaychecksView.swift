@@ -142,6 +142,7 @@ struct CheckCard: View {
     @State private var editingIncome = false
     @State private var incomeText = ""
     @State private var addingOneTime = false
+    @State private var editingExtra: IncomeItem?
     @AppStorage(Fold.key) private var folded = ""
 
     var body: some View {
@@ -165,9 +166,9 @@ struct CheckCard: View {
                             .foregroundStyle(t.left < 0 ? Theme.over : .primary)
                     }
                 } else {
-                    Button { incomeText = String(format: "%.2f", t.income); editingIncome = true } label: {
+                    Button { incomeText = String(format: "%.2f", t.income - t.extraIncome); editingIncome = true } label: {
                         VStack(alignment: .trailing, spacing: 0) {
-                            Text("Take-home").font(.caption2).foregroundStyle(.secondary)
+                            Text(t.extraIncome > 0.004 ? "Coming in" : "Take-home").font(.caption2).foregroundStyle(.secondary)
                             Text(money(t.income)).font(.subheadline.weight(.semibold)).monospacedDigit()
                         }
                     }.buttonStyle(.plain)
@@ -188,6 +189,31 @@ struct CheckCard: View {
             Tag(text: "Covers bills due \(DU.range(w.from, DU.addDays(w.to, -1)))")
 
             AllocationBar(totals: t)
+
+            let extraItems = e.cell(check.key, check.n).addIncome
+            if !extraItems.isEmpty {
+                HStack {
+                    Circle().fill(Theme.good).frame(width: 8, height: 8)
+                    Text("EXTRA INCOME").font(.caption.weight(.bold)).tracking(0.5)
+                    Spacer()
+                    Text("+" + money(t.extraIncome)).font(.caption.weight(.semibold)).monospacedDigit().foregroundStyle(Theme.good)
+                }
+                .padding(.top, 6)
+                ForEach(extraItems) { item in
+                    HStack(spacing: 12) {
+                        Image(systemName: "plus.circle.fill").font(.title3).foregroundStyle(Theme.good)
+                        Text(item.name)
+                        Spacer()
+                        Text("+" + money(item.amount)).font(.subheadline.weight(.semibold)).monospacedDigit().foregroundStyle(Theme.good)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture { editingExtra = item }
+                    .contextMenu {
+                        Button { editingExtra = item } label: { Label("Edit", systemImage: "pencil") }
+                        Button(role: .destructive) { store.deleteIncomeItem(key: check.key, n: check.n, id: item.id) } label: { Label("Delete", systemImage: "trash") }
+                    }
+                }
+            }
 
             ForEach(TypeInfo.order, id: \.self) { type in
                 let group = ls.filter { $0.type == type }
@@ -220,8 +246,11 @@ struct CheckCard: View {
                 }
             }
 
-            Button { addingOneTime = true } label: { Label("Add a one-time item", systemImage: "plus") }
-                .font(.subheadline)
+            HStack(spacing: 20) {
+                Button { addingOneTime = true } label: { Label("One-time item", systemImage: "plus") }
+                Button { editingExtra = IncomeItem() } label: { Label("Extra income", systemImage: "plus") }
+            }
+            .font(.subheadline)
             }
         }
         .card()
@@ -232,6 +261,7 @@ struct CheckCard: View {
             Button("Cancel", role: .cancel) {}
         }
         .sheet(isPresented: $addingOneTime) { OneTimeSheet(check: check).macSheet() }
+        .sheet(item: $editingExtra) { item in IncomeItemSheet(check: check, item: item).macSheet() }
     }
 }
 
@@ -458,6 +488,52 @@ struct OneTimeSheet: View {
                     }.disabled(name.isEmpty || Double(amount) == nil)
                 }
             }
+        }
+        .presentationDetents([.medium])
+    }
+}
+
+/// Add or change extra income on a paycheck, like a side job or a reimbursement.
+struct IncomeItemSheet: View {
+    @EnvironmentObject var store: Store
+    @Environment(\.dismiss) private var dismiss
+    let check: Check
+    @State var item: IncomeItem
+    @State private var amount = ""
+
+    var isNew: Bool { !store.engine.cell(check.key, check.n).addIncome.contains { $0.id == item.id } }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Where it's from (side job, refund…)", text: $item.name)
+                    TextField("Amount", text: $amount).decimalPad()
+                } footer: {
+                    Text("Added to this paycheck's money coming in, so it shows in what's left to spend. Only this app counts it; the web app doesn't yet.")
+                }
+                if !isNew {
+                    Button("Delete", role: .destructive) {
+                        store.deleteIncomeItem(key: check.key, n: check.n, id: item.id); dismiss()
+                    }
+                }
+            }
+            .navigationTitle(isNew ? "Extra income" : item.name)
+            .inlineTitle()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(isNew ? "Add" : "Save") {
+                        var x = item
+                        x.name = x.name.trimmingCharacters(in: .whitespaces)
+                        x.amount = r2(Double(amount) ?? 0)
+                        store.saveIncomeItem(key: check.key, n: check.n, x)
+                        dismiss()
+                    }
+                    .disabled(item.name.trimmingCharacters(in: .whitespaces).isEmpty || (Double(amount) ?? 0) <= 0)
+                }
+            }
+            .onAppear { if item.amount > 0 { amount = String(format: "%.2f", item.amount) } }
         }
         .presentationDetents([.medium])
     }

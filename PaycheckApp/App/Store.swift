@@ -209,6 +209,17 @@ final class Store: ObservableObject {
         editCell(key, n) { c in c.income = v }
     }
 
+    /// Adds or updates an extra income item on a paycheck.
+    func saveIncomeItem(key: String, n: Int, _ item: IncomeItem) {
+        editCell(key, n) { c in
+            if let i = c.addIncome.firstIndex(where: { $0.id == item.id }) { c.addIncome[i] = item } else { c.addIncome.append(item) }
+        }
+    }
+
+    func deleteIncomeItem(key: String, n: Int, id: String) {
+        editCell(key, n) { c in c.addIncome.removeAll { $0.id == id } }
+    }
+
     // MARK: Purchases
 
     /// Returns an error message if the date is before the budget starts.

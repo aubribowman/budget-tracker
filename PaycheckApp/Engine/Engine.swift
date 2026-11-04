@@ -63,6 +63,7 @@ struct BuyEntry: Identifiable {
 struct Totals {
     var income: Double, start: Double, budget: Double, actual: Double, paid: Double, aside: Double
     var byType: [String: Double], budgetByType: [String: Double]
+    var extraIncome = 0.0                 // part of `income` from extra income items
     var left: Double { start + income - actual }
     var plannedLeft: Double { start + income - budget }
 }
@@ -293,7 +294,9 @@ final class Engine {
     func totals(_ key: String, _ n: Int) -> Totals {
         let ck = "\(key)|\(n)"
         if let t = totalsCache[ck] { return t }
-        let income = cell(key, n).income ?? defaultPay(key)
+        let c = cell(key, n)
+        let extraIncome = c.addIncome.reduce(0) { $0 + $1.amount }
+        let income = (c.income ?? defaultPay(key)) + extraIncome
         var by: [String: Double] = [:], bud: [String: Double] = [:]
         var budget = 0.0, actual = 0.0, paid = 0.0, aside = 0.0
         for l in lines(key, n) where !l.skip {
@@ -306,7 +309,7 @@ final class Engine {
             let prev: (String, Int) = n > 1 ? (key, n - 1) : (DU.addMonths(key, -1), checksIn(DU.addMonths(key, -1)).count)
             if prev.0 >= cfg.startMonth && DU.monthsDiff(cfg.startMonth, prev.0) < 60 && prev.1 >= 1 { start = totals(prev.0, prev.1).left }
         }
-        let t = Totals(income: income, start: start, budget: budget, actual: actual, paid: paid, aside: aside, byType: by, budgetByType: bud)
+        let t = Totals(income: income, start: start, budget: budget, actual: actual, paid: paid, aside: aside, byType: by, budgetByType: bud, extraIncome: extraIncome)
         totalsCache[ck] = t
         return t
     }
