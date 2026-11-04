@@ -115,33 +115,28 @@ struct WindfallView: View {
 
     var impactSection: some View {
         let e = store.engine
-        let before = e.simulate(extra: store.state.extra, strategy: store.state.strategy)
-        var s = store.state
-        for i in s.debts.indices {
-            let a = value("d:" + s.debts[i].id)
-            if a > 0 { s.debts[i].balance = max(0, e.curBal(s.debts[i]) - a); s.debts[i].asOf = DU.iso(DU.today) }
-        }
-        let lb = e.loanBalances()
-        for i in s.loans.indices {
-            let a = value("l:" + s.loans[i].id)
-            if a > 0 { s.loans[i].balance = max(0, (lb[s.loans[i].id] ?? s.loans[i].balance) - a); s.loans[i].asOf = DU.iso(DU.today) }
-        }
-        let e2 = Engine(s)
-        let after = e2.simulate(extra: s.extra, strategy: s.strategy)
-        let lBefore = e.simulateLoans(), lAfter = e2.simulateLoans()
+        // Same math as the Payoff tab, including the roll-over checkbox. The money goes in this
+        // month, and a debt it pays off keeps its payment in the plan for the next debt.
+        var lump: [String: Double] = [:]
+        for d in store.state.debts { lump[d.id] = value("d:" + d.id) }
+        for l in store.state.loans { lump[l.id] = value("l:" + l.id) }
+        let roll = e.loanBalances().values.contains { $0 > 0.005 } && store.state.settings.rollLoans
+        let before = e.simulateAll(extra: store.state.extra, strategy: store.state.strategy, roll: roll)
+        let after = e.simulateAll(extra: store.state.extra, strategy: store.state.strategy, roll: roll, lump: lump)
         let now = DU.ym(Date())
         let debtMoney = store.state.debts.reduce(0) { $0 + value("d:" + $1.id) }
         let loanMoney = store.state.loans.reduce(0) { $0 + value("l:" + $1.id) }
+        let hasDebts = store.state.debts.contains { e.curBal($0) > 0.005 }
+        func sooner(_ a: Int, _ b: Int) -> String? { a > b ? "\(a - b) months sooner" : nil }
         return Section("What it changes") {
-            if debtMoney > 0 && !before.stuck && !after.stuck {
-                impact("Debt-free", after.months == 0 ? "Now" : DU.monthLabel(DU.addMonths(now, after.months)),
-                       before.months > after.months ? "\(before.months - after.months) months sooner" : nil)
-                impact("Interest saved on debts", money0(max(0, before.interest - after.interest)), nil)
-            }
-            if loanMoney > 0, let pa = lAfter.payoff {
-                let sooner = lBefore.payoff.map { DU.monthsDiff(pa, $0) } ?? 0
-                impact("Student loans paid off", DU.monthLabel(pa), sooner > 0 ? "\(sooner) months sooner" : nil)
-                impact("Interest saved on loans", money0(max(0, lBefore.interest - lAfter.interest)), nil)
+            if debtMoney + loanMoney > 0 && !before.stuck && !after.stuck {
+                if hasDebts && before.loanMonths > 0 {
+                    impact("Cards & personal loans paid off", after.debtMonths == 0 ? "Now" : DU.monthLabel(after.debtsDone(now)),
+                           sooner(before.debtMonths, after.debtMonths))
+                }
+                impact("Completely debt-free", after.months == 0 ? "Now" : DU.monthLabel(after.finish(now)),
+                       sooner(before.months, after.months))
+                impact("Interest saved", money0(max(0, before.interest - after.interest)), nil)
             }
             ForEach(store.state.goals) { g in
                 let a = value("g:" + g.id)

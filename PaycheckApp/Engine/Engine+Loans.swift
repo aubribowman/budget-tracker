@@ -172,7 +172,9 @@ extension Engine {
 
     /// Runs your cards, personal loans and student loans together. With `roll`, once the
     /// cards and personal loans are paid off, their payments go to student loans.
-    func simulateAll(extra: Double, strategy: String, roll: Bool) -> PayoffSim {
+    /// `lump` is a one-time payment this month (debt or loan id → amount), for the
+    /// windfall planner. A debt it pays off keeps its payment in the plan, like the web app.
+    func simulateAll(extra: Double, strategy: String, roll: Bool, lump: [String: Double] = [:]) -> PayoffSim {
         var r = PayoffSim()
         let now = DU.ym(Date())
         struct D { var id: String; var bal: Double; var apr: Double; var min: Double; var loan: Bool
@@ -205,6 +207,18 @@ extension Engine {
 
         while ds.contains(where: { $0.bal > 0.005 }) && m < 480 {
             m += 1
+            if m == 1 {
+                for i in ds.indices {
+                    guard let a = lump[ds[i].id], a > 0.005 else { continue }
+                    let cap = ds[i].loan && m <= ds[i].start ? min(ds[i].bal, ds[i].startBal > 0 ? ds[i].startBal : ds[i].bal) : ds[i].bal
+                    let p = min(a, cap)
+                    ds[i].bal -= p
+                    if ds[i].startBal > 0 { ds[i].startBal = max(0, ds[i].startBal - p) }
+                    if ds[i].loan && ds[i].start >= m {
+                        ds[i].growth = max(0, (ds[i].startBal - ds[i].bal) / Double(max(1, ds[i].start - m + 1)))
+                    }
+                }
+            }
             // Before repayment, loans grow toward their balance at repayment.
             for i in ds.indices where ds[i].loan {
                 if m <= ds[i].start { ds[i].bal += ds[i].growth }
