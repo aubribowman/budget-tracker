@@ -1,4 +1,4 @@
-# Paycheck Plan for iPhone
+# Paycheck Plan for iPhone and Mac
 
 A native SwiftUI version of the Paycheck Plan web app. It plans your budget one paycheck at a time: which bills each paycheck covers, what's left to spend, and how fast your debt and loans go away. It reads the same backup file as the web app, so your budget moves over in one step.
 
@@ -49,6 +49,15 @@ The app's ID is `com.aubribowman.PaycheckApp`, the widget's is `com.aubribowman.
 
 With a free Apple ID, the app stops opening after 7 days. Run it from Xcode again to reset that. A paid Apple Developer account ($99/year) removes the limit and adds TestFlight.
 
+## Run it on your Mac
+
+Needs a Mac with an Apple chip.
+
+1. In Xcode, pick **My Mac** from the device menu at the top of the window.
+2. Press **⌘R**. The first time, Xcode sets up signing for the Mac the same way it does for your iPhone.
+
+The Mac app has everything except widgets, which are iPhone only for now. Face ID becomes Touch ID on Macs that have it. To keep the app, drag it from Xcode's **Products** folder (Product → Show Build Folder in Finder) into your Applications folder.
+
 ## Move your data over
 
 1. In the web app, go to **Setup → Saving and backups → Download a backup**. Save or AirDrop the file to your iPhone's **Files** app.
@@ -56,7 +65,17 @@ With a free Apple ID, the app stops opening after 7 days. Run it from Xcode agai
 
 To go the other way, use **Create a backup → Share backup file** in the app, then **Restore from a backup** in the web app.
 
-Your budget is saved only on the device. Nothing syncs between devices on its own, so use backups to move it.
+## Keep your iPhone and Mac in sync
+
+1. In the **Files** app on your iPhone (or Finder on your Mac), make a folder in **iCloud Drive**, for example `Paycheck Plan`.
+2. In the app on each device, open **Setup → Sync between devices → Choose a sync folder** and pick that folder.
+3. On the second device, the app finds the budget already there and asks which copy to keep. Choose **Use the folder's budget** to bring your existing plan over.
+
+After that, each change is saved to a file named `Paycheck Plan.json` in that folder, and iCloud copies it to your other devices. The app checks for changes when it opens and every 30 seconds while it's open. **Sync now** checks right away.
+
+- If you change both devices before they've had a chance to sync, the most recently saved copy wins and the other change is lost. Give iCloud a moment between devices.
+- Sync works with a free Apple ID, because the app only uses a folder you pick. It doesn't need Apple's built-in iCloud sync.
+- The sync file uses the same format as a backup, so you can also import it in the web app.
 
 ## Import from your bank
 
@@ -83,18 +102,19 @@ PaycheckApp/              The app
   App/                    App entry, tabs, Face ID lock, Store (saving and every change)
   Engine/                 Budget math: paychecks, lines, totals, debt payoff, goals, student loans
   Model/                  The data, in the same format as the web app's backup file
-  Support/                Dates and money, colors, reminders, bank CSV reader, widget data
+  Support/                Dates and money, colors, reminders, bank CSV reader, widget data,
+                          and Platform.swift (iPhone-only touches with their Mac versions)
   Views/                  One file per screen
   Assets.xcassets         App icon (light and dark) and colors
 PaycheckWidget/           Home and lock screen widgets
 PaycheckWidget-Info.plist Widget settings
-*.entitlements            App Group that lets the app and widget share data
+*.entitlements            App Group that lets the app and widget share data, and Mac file access for sync
 ```
 
 ## Not yet
 
-- **Mac app.** The project targets the Mac, but a few iPhone-only parts (number keypads, title styles) need Mac versions before it builds there.
-- **Sync** between devices. Today it's backups only. iCloud sync would need a paid developer account.
+- **Widgets on Mac.** Widgets are built for iPhone only.
+- **Automatic background sync.** Sync works through a folder you pick (see above). Apple's built-in iCloud sync, which needs no setup, requires a paid developer account.
 
 ## If the build fails
 

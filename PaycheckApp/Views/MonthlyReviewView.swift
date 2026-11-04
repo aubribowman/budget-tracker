@@ -195,10 +195,11 @@ struct MonthlyReviewView: View {
                     .buttonStyle(.borderedProminent)
                 }
                 .padding()
+                .readableWidth()
             }
             .background(Theme.bg)
             .navigationTitle("\(DU.monthLabel(month)) review")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
         }
     }

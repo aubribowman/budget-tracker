@@ -10,7 +10,7 @@ extension Color {
     }
     /// Picks a different shade in dark mode.
     static func adaptive(light: UInt32, dark: UInt32) -> Color {
-        Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(Color(hex: dark)) : UIColor(Color(hex: light)) })
+        SystemColor.adaptive(light: Color(hex: light), dark: Color(hex: dark))
     }
 }
 
@@ -24,12 +24,12 @@ enum Theme {
 
     static let accent = Color.adaptive(light: 0x0A3323, dark: 0xD3968C)
     static let accentSoft = Color.adaptive(light: 0xF7F4D5, dark: 0x26231C)
-    static let card = Color(.secondarySystemGroupedBackground)
-    static let bg = Color(.systemGroupedBackground)
+    static let card = SystemColor.card
+    static let bg = SystemColor.bg
     static let good = Color.adaptive(light: 0x5E7A3A, dark: 0xA9BD7E)
     static let bad = Color.adaptive(light: 0xA8473D, dark: 0xE8A598)
     static let over = Color.adaptive(light: 0xB4534A, dark: 0xE8806F)
-    static let track = Color(.tertiarySystemFill)
+    static let track = SystemColor.track
 }
 
 struct TypeInfo {

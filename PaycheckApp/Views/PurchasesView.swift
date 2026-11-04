@@ -64,9 +64,9 @@ struct PurchasesView: View {
                     } label: { Image(systemName: "plus") }
                 }
             }
-            .navigationBarTitleDisplayMode(.inline)
-            .sheet(isPresented: $adding) { AddPurchaseSheet(envs: envs, preset: filter) }
-            .sheet(isPresented: $bankImport) { BankImportView() }
+            .inlineTitle()
+            .sheet(isPresented: $adding) { AddPurchaseSheet(envs: envs, preset: filter).macSheet() }
+            .sheet(isPresented: $bankImport) { BankImportView().macSheet() }
         }
     }
 
@@ -113,14 +113,14 @@ struct AddPurchaseSheet: View {
         NavigationStack {
             Form {
                 TextField("Where (Kroger, Shell, Target…)", text: $note)
-                TextField("Amount", text: $amount).keyboardType(.decimalPad)
+                TextField("Amount", text: $amount).decimalPad()
                 DatePicker("Date", selection: $date, displayedComponents: .date)
                 Picker("Category", selection: $recId) { ForEach(envs) { Text($0.name).tag($0.id) } }
                 if let error { Text(error).foregroundStyle(Theme.bad).font(.footnote) }
                 Section { Text("Counts toward the paycheck you were most recently paid before this date.").font(.footnote).foregroundStyle(.secondary) }
             }
             .navigationTitle("Log a purchase")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {

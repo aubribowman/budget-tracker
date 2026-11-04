@@ -53,6 +53,7 @@ struct HomeView: View {
                     }
                 }
                 .padding()
+                .readableWidth()
             }
             .background(Theme.bg)
             .navigationTitle(greeting)
@@ -62,12 +63,12 @@ struct HomeView: View {
                         .accessibilityLabel("Setup")
                 }
             }
-            .sheet(isPresented: $adding) { AddPurchaseSheet(envs: envs, preset: nil) }
-            .sheet(isPresented: $showSetup) { SettingsView(showsDone: true) }
+            .sheet(isPresented: $adding) { AddPurchaseSheet(envs: envs, preset: nil).macSheet() }
+            .sheet(isPresented: $showSetup) { SettingsView(showsDone: true).macSheet() }
             .sheet(item: Binding(get: { reviewMonth.map { IdentifiedMonth(id: $0) } }, set: { reviewMonth = $0?.id })) { m in
-                MonthlyReviewView(month: m.id)
+                MonthlyReviewView(month: m.id).macSheet()
             }
-            .sheet(isPresented: $windfall) { WindfallView() }
+            .sheet(isPresented: $windfall) { WindfallView().macSheet() }
             .navigationDestination(isPresented: $showGoals) { GoalsView() }
         }
     }

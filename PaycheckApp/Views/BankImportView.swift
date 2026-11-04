@@ -34,7 +34,7 @@ struct BankImportView: View {
                 if rows.isEmpty { intro } else { review }
             }
             .navigationTitle("Import from bank")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 if !rows.isEmpty {
@@ -90,6 +90,7 @@ struct BankImportView: View {
                 .frame(maxWidth: .infinity, alignment: .leading).card()
             }
             .padding()
+            .readableWidth()
         }
         .background(Theme.bg)
     }

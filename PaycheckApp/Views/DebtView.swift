@@ -61,7 +61,7 @@ struct DebtView: View {
                             Text("Extra each month")
                             Spacer()
                             TextField("0.00", text: $extraText, onCommit: commitExtra)
-                                .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(maxWidth: 110)
+                                .decimalPad().multilineTextAlignment(.trailing).frame(maxWidth: 110)
                                 .textFieldStyle(.roundedBorder)
                         }
                         Text("On top of \(money(ranked.reduce(0) { $0 + $1.min })) in minimums.").font(.caption).foregroundStyle(.secondary)
@@ -108,12 +108,13 @@ struct DebtView: View {
                     }
                 }
                 .padding()
+                .readableWidth()
             }
             .background(Theme.bg)
             .navigationTitle("Payoff")
-            .sheet(item: $editing) { d in DebtEditSheet(debt: d) }
+            .sheet(item: $editing) { d in DebtEditSheet(debt: d).macSheet() }
             .onAppear { extraText = String(format: "%.2f", store.state.extra) }
-            .toolbar { ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Done") { commitExtra(); hideKeyboard() } } }
+            .keyboardDoneButton { commitExtra() }
         }
     }
 
@@ -122,9 +123,6 @@ struct DebtView: View {
     }
 }
 
-func hideKeyboard() {
-    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-}
 
 /// Puts the extra payment on paychecks so you can tick it off against a specific debt.
 struct ExtraLineCard: View {
@@ -186,7 +184,7 @@ struct DebtEditSheet: View {
                 }
             }
             .navigationTitle(isNew ? "New debt" : debt.name)
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) { Button("Save") { save(); dismiss() } }
@@ -203,7 +201,7 @@ struct DebtEditSheet: View {
     }
 
     func field(_ label: String, _ text: Binding<String>) -> some View {
-        HStack { Text(label); Spacer(); TextField("0.00", text: text).keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(maxWidth: 120) }
+        HStack { Text(label); Spacer(); TextField("0.00", text: text).decimalPad().multilineTextAlignment(.trailing).frame(maxWidth: 120) }
     }
 
     func save() {

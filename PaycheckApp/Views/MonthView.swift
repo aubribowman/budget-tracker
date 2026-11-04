@@ -85,6 +85,7 @@ struct MonthView: View {
                     .card()
                 }
                 .padding()
+                .readableWidth()
             }
             .background(Theme.bg)
             .toolbar {
@@ -94,8 +95,8 @@ struct MonthView: View {
                         .accessibilityLabel("Review this month")
                 }
             }
-            .navigationBarTitleDisplayMode(.inline)
-            .sheet(isPresented: $reviewing) { MonthlyReviewView(month: store.month) }
+            .inlineTitle()
+            .sheet(isPresented: $reviewing) { MonthlyReviewView(month: store.month).macSheet() }
         }
     }
 

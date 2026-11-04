@@ -40,10 +40,11 @@ struct GoalsView: View {
                 .padding(.top, 4)
             }
             .padding()
+            .readableWidth()
         }
         .background(Theme.bg)
         .navigationTitle("Savings goals")
-        .sheet(item: $editing) { g in GoalEditSheet(goal: g) }
+        .sheet(item: $editing) { g in GoalEditSheet(goal: g).macSheet() }
     }
 }
 
@@ -112,8 +113,8 @@ struct GoalEditSheet: View {
             Form {
                 Section {
                     TextField("Name (Emergency fund, Trip…)", text: $goal.name)
-                    HStack { Text("Goal amount"); Spacer(); TextField("0.00", text: $target).keyboardType(.decimalPad).multilineTextAlignment(.trailing) }
-                    HStack { Text("Saved so far"); Spacer(); TextField("0.00", text: $saved).keyboardType(.decimalPad).multilineTextAlignment(.trailing) }
+                    HStack { Text("Goal amount"); Spacer(); TextField("0.00", text: $target).decimalPad().multilineTextAlignment(.trailing) }
+                    HStack { Text("Saved so far"); Spacer(); TextField("0.00", text: $saved).decimalPad().multilineTextAlignment(.trailing) }
                 } footer: {
                     Text("Enter what’s in the account today. After that, savings you mark paid on your paychecks are added automatically.")
                 }
@@ -138,7 +139,7 @@ struct GoalEditSheet: View {
                 }
             }
             .navigationTitle(isNew ? "New goal" : goal.name)
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {

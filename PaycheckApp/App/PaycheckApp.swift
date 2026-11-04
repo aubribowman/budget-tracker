@@ -11,7 +11,12 @@ struct PaycheckPlanApp: App {
                 .environmentObject(store)
                 .tint(Theme.accent)
                 .preferredColorScheme(appearance == "light" ? .light : appearance == "dark" ? .dark : nil)
+                .macFormStyle()
         }
+        #if os(macOS)
+        // Open at a phone-like size; the cards are designed for a narrow column.
+        .defaultSize(width: 760, height: 900)
+        #endif
     }
 }
 
@@ -71,7 +76,15 @@ struct RootView: View {
         }
         .onChange(of: phase) { _, p in
             // Refresh "today"-based numbers (autopay, safe to spend) when the app comes back.
-            if p == .active { store.update { _ in } }
+            if p == .active { store.refresh() }
+        }
+        .task(id: phase) {
+            // While the app is open, check the sync folder now and every 30 seconds.
+            guard phase == .active else { return }
+            while !Task.isCancelled {
+                await store.syncNow()
+                try? await Task.sleep(for: .seconds(30))
+            }
         }
         .alert("Something went wrong", isPresented: Binding(get: { store.lastError != nil }, set: { if !$0 { store.lastError = nil } })) {
             Button("OK", role: .cancel) {}

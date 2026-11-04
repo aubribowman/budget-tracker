@@ -112,6 +112,7 @@ struct UtilizationView: View {
                 .frame(maxWidth: .infinity, alignment: .leading).card()
             }
             .padding()
+            .readableWidth()
         }
         .background(Theme.bg)
         .navigationTitle("Credit utilization")

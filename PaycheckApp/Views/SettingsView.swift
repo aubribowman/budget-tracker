@@ -7,6 +7,8 @@ struct SettingsView: View {
     @AppStorage(Notifier.enabledKey) private var remindersOn = false
     @AppStorage(Notifier.hourKey) private var reminderHour = 9
     @State private var importing = false
+    @State private var pickingFolder = false
+    @State private var foundSync: BudgetState?
     @State private var exportURL: URL?
     @State private var importedOK = false
     @Environment(\.dismiss) private var dismiss
@@ -50,6 +52,8 @@ struct SettingsView: View {
                          : "Adds purchases and marks bills paid from a file you download from your bank. Your choices are remembered for next time.")
                 }
 
+                SyncSection(sync: store.sync, choose: { pickingFolder = true; importing = true }, found: $foundSync)
+
                 Section {
                     Button { importing = true } label: { Label("Import a backup", systemImage: "square.and.arrow.down") }
                     if let url = exportURL {
@@ -84,14 +88,17 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Setup")
-            .sheet(isPresented: $bankImport) { BankImportView() }
+            .sheet(isPresented: $bankImport) { BankImportView().macSheet() }
             .toolbar {
                 if showsDone {
                     ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
                 }
             }
-            .fileImporter(isPresented: $importing, allowedContentTypes: [.json, .data]) { result in
+            .fileImporter(isPresented: $importing, allowedContentTypes: pickingFolder ? [.folder] : [.json, .data]) { result in
+                let forSync = pickingFolder
+                pickingFolder = false
                 guard case .success(let url) = result else { return }
+                if forSync { connectSync(url); return }
                 let ok = url.startAccessingSecurityScopedResource()
                 defer { if ok { url.stopAccessingSecurityScopedResource() } }
                 if let data = try? Data(contentsOf: url), store.importBackup(data) { importedOK = true }
@@ -99,6 +106,17 @@ struct SettingsView: View {
             .alert("Backup imported", isPresented: $importedOK) { Button("OK") {} } message: {
                 Text("Your plan is loaded. Check the Paychecks tab.")
             }
+        }
+    }
+
+    /// Starts syncing with the picked folder. If your other device already put a budget
+    /// there, ask which copy to keep; otherwise start the folder with this device's.
+    func connectSync(_ url: URL) {
+        let existing = store.connectSync(url)
+        if let existing, !(existing.recurring.isEmpty && existing.debts.isEmpty) {
+            foundSync = existing
+        } else {
+            Task { await store.pushThisDevice() }
         }
     }
 
@@ -144,7 +162,7 @@ struct ScheduleView: View {
             if s.mode != "semi" {
                 Section("Biweekly") {
                     DatePicker("Any recent payday", selection: dateBind(\.bwAnchor), displayedComponents: .date)
-                    HStack { Text("Take-home per check"); Spacer(); TextField("0.00", text: moneyBind(\.bwPay)).keyboardType(.decimalPad).multilineTextAlignment(.trailing) }
+                    HStack { Text("Take-home per check"); Spacer(); TextField("0.00", text: moneyBind(\.bwPay)).decimalPad().multilineTextAlignment(.trailing) }
                     if s.mode == "switch" {
                         DatePicker("Last biweekly payday", selection: dateBind(\.bwEnd), displayedComponents: .date)
                         DatePicker("Semi-monthly starts", selection: monthBind(\.switchMonth), displayedComponents: .date)
@@ -161,7 +179,7 @@ struct ScheduleView: View {
                     Picker("Weekend paydays", selection: bind(\.weekend)) {
                         Text("Friday before").tag("friday"); Text("Monday after").tag("monday"); Text("That day").tag("none")
                     }
-                    HStack { Text("Take-home per check"); Spacer(); TextField("0.00", text: moneyBind(\.pay)).keyboardType(.decimalPad).multilineTextAlignment(.trailing) }
+                    HStack { Text("Take-home per check"); Spacer(); TextField("0.00", text: moneyBind(\.pay)).decimalPad().multilineTextAlignment(.trailing) }
                 }
             }
             Section {
@@ -176,7 +194,7 @@ struct ScheduleView: View {
             }
         }
         .navigationTitle("Paydays")
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineTitle()
     }
 }
 
@@ -214,8 +232,8 @@ struct RecurringListView: View {
             }
         }
         .navigationTitle("Recurring")
-        .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $editing) { r in RecurringEditSheet(item: r) }
+        .inlineTitle()
+        .sheet(item: $editing) { r in RecurringEditSheet(item: r).macSheet() }
     }
 
     func summary(_ r: Recurring) -> String {
@@ -248,7 +266,7 @@ struct RecurringEditSheet: View {
         NavigationStack {
             Form {
                 TextField("Name", text: $item.name)
-                HStack { Text("Amount"); Spacer(); TextField("0.00", text: $amount).keyboardType(.decimalPad).multilineTextAlignment(.trailing) }
+                HStack { Text("Amount"); Spacer(); TextField("0.00", text: $amount).decimalPad().multilineTextAlignment(.trailing) }
                 Picker("Type", selection: $item.type) { ForEach(TypeInfo.order, id: \.self) { Text(TypeInfo.of($0).label).tag($0) } }
                 Picker("Paid from", selection: $item.when) {
                     Text("By due date").tag("auto"); Text("Always check 1").tag("1"); Text("Always check 2").tag("2"); Text("Every check").tag("each")
@@ -283,7 +301,7 @@ struct RecurringEditSheet: View {
                 }
             }
             .navigationTitle(isNew ? "New item" : item.name)
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {

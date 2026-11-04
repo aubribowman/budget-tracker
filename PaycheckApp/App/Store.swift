@@ -9,8 +9,13 @@ final class Store: ObservableObject {
     @Published private(set) var engine: Engine
     @Published var month: String = DU.ym(Date())
     @Published var lastError: String?
+    /// Optional shared folder (like iCloud Drive) that keeps your devices in step.
+    let sync = SyncFolder()
 
     private var saveTask: Task<Void, Never>?
+    private static let stampFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]; return f
+    }()
 
     static var fileURL: URL {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -34,31 +39,65 @@ final class Store: ObservableObject {
     func update(_ change: (inout BudgetState) -> Void) {
         var s = state
         change(&s)
-        s.savedAt = ISO8601DateFormatter().string(from: Date())
+        s.savedAt = Store.stampFormatter.string(from: Date())
         state = s
         engine = Engine(s)
-        scheduleSave()
+        scheduleSave(push: true)
     }
 
-    private func scheduleSave() {
+    /// Recomputes "today"-based numbers (autopay, what's due) without counting as a change,
+    /// so just opening the app doesn't make this device's copy look newest to sync.
+    func refresh() { engine = Engine(state) }
+
+    /// Saves to this device, then (for your own changes) to the sync folder.
+    private func scheduleSave(push: Bool) {
         saveTask?.cancel()
         let snapshot = state
         saveTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 400_000_000)
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, let self else { return }
             do {
                 let enc = JSONEncoder()
                 enc.outputFormatting = [.prettyPrinted, .sortedKeys]
                 try enc.encode(snapshot).write(to: Store.fileURL, options: .atomic)
             } catch {
-                self?.lastError = "Couldn’t save: \(error.localizedDescription)"
+                self.lastError = "Couldn’t save: \(error.localizedDescription)"
             }
-            if let e = self?.engine {
-                WidgetSync.write(e, goals: snapshot.goals)
-                await Notifier.reschedule(e)
-            }
+            WidgetSync.write(self.engine, goals: snapshot.goals)
+            if push { await self.sync.push(snapshot) }
+            await Notifier.reschedule(self.engine)
         }
     }
+
+    // MARK: Sync
+
+    /// Brings in the other device's changes if they're newer, or sends ours if ours are.
+    func syncNow() async {
+        guard sync.isOn else { return }
+        if let remote = await sync.pull() {
+            if remote.savedDate > state.savedDate { useSynced(remote) }
+            else if state.savedDate > remote.savedDate { await sync.push(state) }
+        } else if sync.problem == nil {
+            await sync.push(state)      // empty folder: start it with this device's budget
+        }
+    }
+
+    /// Replaces this device's budget with the copy from the sync folder.
+    func useSynced(_ s: BudgetState) {
+        state = s
+        engine = Engine(s)
+        scheduleSave(push: false)
+    }
+
+    /// Starts syncing with a folder. Returns the budget already there, if any, so you can
+    /// choose which copy to keep.
+    func connectSync(_ url: URL) -> BudgetState? {
+        do { return try sync.connect(url) }
+        catch { sync.problem = "Couldn’t use that folder: \(error.localizedDescription)"; return nil }
+    }
+
+    /// Makes this device's budget the one in the sync folder.
+    func pushThisDevice() async { await sync.push(state) }
 
     // MARK: Backup
 

@@ -41,7 +41,7 @@ struct StudentLoansSection: View {
             }
             Button { editing = Loan() } label: { Label("Add a student loan", systemImage: "plus") }
         }
-        .sheet(item: $editing) { l in LoanEditSheet(loan: l) }
+        .sheet(item: $editing) { l in LoanEditSheet(loan: l).macSheet() }
         .onAppear {
             payText = store.state.loanPlan.payment > 0 ? String(format: "%.2f", store.state.loanPlan.payment) : ""
             planStart = DU.firstOfMonth(store.state.loanPlan.start.count >= 7 ? String(store.state.loanPlan.start.prefix(7))
@@ -57,7 +57,7 @@ struct StudentLoansSection: View {
                 Text("Monthly payment")
                 Spacer()
                 TextField(String(format: "%.2f", sim.standardTotal), text: $payText, onCommit: commitPlan)
-                    .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(maxWidth: 110)
+                    .decimalPad().multilineTextAlignment(.trailing).frame(maxWidth: 110)
                     .textFieldStyle(.roundedBorder)
             }
             Text(store.state.loanPlan.payment > 0
@@ -74,7 +74,7 @@ struct StudentLoansSection: View {
                 .font(.caption).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading).card()
-        .toolbar { ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Done") { commitPlan(); hideKeyboard() } } }
+        .keyboardDoneButton { commitPlan() }
     }
 
     func commitPlan() {
@@ -154,7 +154,7 @@ struct LoanEditSheet: View {
                 }
             }
             .navigationTitle(isNew ? "New loan" : loan.name)
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -175,7 +175,7 @@ struct LoanEditSheet: View {
     }
 
     func field(_ label: String, _ text: Binding<String>) -> some View {
-        HStack { Text(label); Spacer(); TextField("0.00", text: text).keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(maxWidth: 120) }
+        HStack { Text(label); Spacer(); TextField("0.00", text: text).decimalPad().multilineTextAlignment(.trailing).frame(maxWidth: 120) }
     }
 
     func save() {

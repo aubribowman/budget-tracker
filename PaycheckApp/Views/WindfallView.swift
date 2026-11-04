@@ -49,7 +49,7 @@ struct WindfallView: View {
                 Section {
                     HStack {
                         Text("$").foregroundStyle(.secondary)
-                        TextField("Amount (tax refund, bonus…)", text: $amountText).keyboardType(.decimalPad)
+                        TextField("Amount (tax refund, bonus…)", text: $amountText).decimalPad()
                             .font(.title2.weight(.semibold))
                     }
                     Button("Suggest a split") { suggest() }.disabled(amount <= 0)
@@ -69,7 +69,7 @@ struct WindfallView: View {
                             }
                             Spacer()
                             TextField("0", text: Binding(get: { split[d.id] ?? "" }, set: { split[d.id] = $0 }))
-                                .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(maxWidth: 100)
+                                .decimalPad().multilineTextAlignment(.trailing).frame(maxWidth: 100)
                                 .foregroundStyle(value(d.id) > d.cap + 0.005 ? Theme.over : .primary)
                         }
                     }
@@ -92,11 +92,11 @@ struct WindfallView: View {
                 }
             }
             .navigationTitle("Windfall planner")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
-                ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Done") { hideKeyboard() } }
             }
+            .keyboardDoneButton()
             .confirmationDialog("Apply \(money(assigned - value("keep"))) to your balances?", isPresented: $confirming, titleVisibility: .visible) {
                 Button("Apply") { apply() }
             }

@@ -18,7 +18,7 @@
       "name": "Products",
       "children": [
         { "path": "<PRODUCTS>/PaycheckApp.app", "id": "000000000000000000000120", "type": "wrapper.application", "index": false },
-        { "path": "<PRODUCTS>/PaycheckWidget.appex", "id": "000000000000000000000220", "type": "wrapper.app-extension", "index": false, "target-membership": [ { "build-phase": "PaycheckApp/copy/Embed Foundation Extensions", "header-preservation": "remove-on-copy", "code-sign-on-copy": true } ] },
+        { "path": "<PRODUCTS>/PaycheckWidget.appex", "id": "000000000000000000000220", "type": "wrapper.app-extension", "index": false, "target-membership": [ { "build-phase": "PaycheckApp/copy/Embed Foundation Extensions", "platforms": [ "ios" ], "code-sign-on-copy": true, "header-preservation": "remove-on-copy" } ] },
       ],
     },
   ],
@@ -44,11 +44,12 @@
       "build-settings": {
         "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
         "CODE_SIGN_ENTITLEMENTS": "PaycheckApp.entitlements",
+        "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": "PaycheckApp-macOS.entitlements",
         "CODE_SIGN_STYLE": "Automatic",
         "CURRENT_PROJECT_VERSION": "1",
         "ENABLE_APP_SANDBOX": "YES",
         "ENABLE_PREVIEWS": "YES",
-        "ENABLE_USER_SELECTED_FILES": "readonly",
+        "ENABLE_USER_SELECTED_FILES": "readwrite",
         "GENERATE_INFOPLIST_FILE": "YES",
         "INFOPLIST_KEY_NSFaceIDUsageDescription": "Face ID keeps your budget private when the lock is turned on.",
         "INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]": "YES",

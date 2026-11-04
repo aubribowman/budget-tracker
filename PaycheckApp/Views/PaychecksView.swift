@@ -18,10 +18,11 @@ struct PaychecksView: View {
                     }
                 }
                 .padding()
+                .readableWidth()
             }
             .background(Theme.bg)
             .toolbar { ToolbarItem(placement: .principal) { MonthBar() } }
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
         }
     }
 }
@@ -225,12 +226,12 @@ struct CheckCard: View {
         }
         .card()
         .alert("Take-home pay", isPresented: $editingIncome) {
-            TextField("Amount", text: $incomeText).keyboardType(.decimalPad)
+            TextField("Amount", text: $incomeText).decimalPad()
             Button("Save") { if let v = Double(incomeText) { store.setIncome(key: check.key, n: check.n, v) } }
             Button("Use default") { store.setIncome(key: check.key, n: check.n, nil) }
             Button("Cancel", role: .cancel) {}
         }
-        .sheet(isPresented: $addingOneTime) { OneTimeSheet(check: check) }
+        .sheet(isPresented: $addingOneTime) { OneTimeSheet(check: check).macSheet() }
     }
 }
 
@@ -302,7 +303,7 @@ struct LineRow: View {
         .contentShape(Rectangle())
         .onTapGesture { editing = true }
         .contextMenu { menuItems }
-        .sheet(isPresented: $editing) { LineSheet(line: line, check: check) }
+        .sheet(isPresented: $editing) { LineSheet(line: line, check: check).macSheet() }
     }
 
     @ViewBuilder var metaView: some View {
@@ -385,7 +386,7 @@ struct LineSheet: View {
                     HStack {
                         Text(line.isEnv ? "Budget this check" : "Amount")
                         Spacer()
-                        TextField("0.00", text: $amountText).keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(maxWidth: 120)
+                        TextField("0.00", text: $amountText).decimalPad().multilineTextAlignment(.trailing).frame(maxWidth: 120)
                     }
                     if let d = line.dueDate { LabeledContent("Due", value: DU.dayLabel(d)) }
                     if line.isExtraLine {
@@ -402,7 +403,7 @@ struct LineSheet: View {
                         .onDelete { idx in for i in idx { store.deletePurchase(key: line.homeKey, n: line.home, recId: line.id, buyId: line.buys[i].id) } }
                         HStack {
                             TextField("Where", text: $buyNote)
-                            TextField("0.00", text: $buyAmount).keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(maxWidth: 90)
+                            TextField("0.00", text: $buyAmount).decimalPad().multilineTextAlignment(.trailing).frame(maxWidth: 90)
                             Button("Add") {
                                 guard let v = Double(buyAmount), v != 0 else { return }
                                 store.editCell(line.homeKey, line.home) { c in
@@ -417,7 +418,7 @@ struct LineSheet: View {
                 }
             }
             .navigationTitle(line.name)
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
@@ -445,7 +446,7 @@ struct OneTimeSheet: View {
             Form {
                 TextField("What is it?", text: $name)
                 Picker("Type", selection: $type) { ForEach(TypeInfo.order, id: \.self) { Text(TypeInfo.of($0).label).tag($0) } }
-                TextField("Amount", text: $amount).keyboardType(.decimalPad)
+                TextField("Amount", text: $amount).decimalPad()
             }
             .navigationTitle("One-time item")
             .toolbar {
