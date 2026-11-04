@@ -74,6 +74,7 @@ extension Engine {
         guard !s.loans.isEmpty else { return sim }
         let now = DU.ym(Date())
         let start = loanBalances()
+        let calc = Dictionary(uniqueKeysWithValues: s.loans.map { ($0.id, loanCalc($0, balances: start)) })
 
         struct L { var id: String; var bal: Double; var apr: Double; var repay: String; var accrues: Bool; var std: Double; var own: Double }
         var ls: [L] = s.loans.map { l in
@@ -81,8 +82,8 @@ extension Engine {
             let repay = repayMonth(l)
             // Balance when repayment starts: interest keeps building until then.
             let monthsLeft = max(0, DU.monthsDiff(now, repay))
-            let atRepay = accruesInSchool(l) ? b * (1 + l.apr / 1200 * Double(monthsLeft)) : b
-            let std = Engine.standardPayment(atRepay, apr: l.apr, years: l.term)
+            let atRepay = calc[l.id].map { monthsLeft > 0 ? $0.atStart : b } ?? b
+            let std = r2(calc[l.id]?.est ?? Engine.standardPayment(atRepay, apr: l.apr, years: l.term))
             sim.items[l.id] = .init(id: l.id, balanceNow: b, atRepay: r2(atRepay), standard: std, payoff: nil)
             return L(id: l.id, bal: b, apr: l.apr, repay: repay, accrues: accruesInSchool(l), std: std, own: l.payment > 0 ? l.payment : std)
         }
@@ -135,6 +136,7 @@ struct PayoffSim {
     var debtPayoff: [String: Int] = [:]
     var loanPayoff: [String: Int] = [:]
     var interest = 0.0
+    var loanInterest = 0.0             // student loans only, including what builds up before repayment
     var months = 0                     // until everything is paid off
     var debtMonths = 0                 // last card or personal loan
     var loanMonths = 0                 // last student loan
@@ -221,10 +223,13 @@ extension Engine {
             }
             // Before repayment, loans grow toward their balance at repayment.
             for i in ds.indices where ds[i].loan {
-                if m <= ds[i].start { ds[i].bal += ds[i].growth }
+                if m <= ds[i].start { ds[i].bal += ds[i].growth; r.loanInterest += ds[i].growth }
                 else if m == ds[i].start + 1 && ds[i].startBal > 0 { ds[i].bal = ds[i].startBal }
             }
-            for i in ds.indices where active(ds[i]) { let x = ds[i].bal * ds[i].apr / 1200; ds[i].bal += x; r.interest += x }
+            for i in ds.indices where active(ds[i]) {
+                let x = ds[i].bal * ds[i].apr / 1200; ds[i].bal += x; r.interest += x
+                if ds[i].loan { r.loanInterest += x }
+            }
 
             var pool = poolBase
             for i in ds.indices where !ds[i].loan && active(ds[i]) { let p = min(ds[i].min, ds[i].bal, pool); ds[i].bal -= p; pool -= p }

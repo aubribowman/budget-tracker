@@ -12,6 +12,11 @@ struct StudentLoansSection: View {
         let sim = e.simulateLoans()
         let loans = store.state.loans
         let total = sim.items.values.reduce(0) { $0 + $1.balanceNow }
+        // Payoff dates come from the same plan as the Payoff tab, so both tabs agree.
+        let roll = store.state.settings.rollLoans
+        let all = e.simulateAll(extra: store.state.extra, strategy: store.state.strategy, roll: roll)
+        let now = DU.ym(Date())
+        let cardsLeft = store.state.debts.contains { e.curBal($0) > 0.005 }
         VStack(spacing: 16) {
             if loans.isEmpty {
                 VStack(spacing: 10) {
@@ -25,10 +30,15 @@ struct StudentLoansSection: View {
                 // Headline
                 VStack(alignment: .leading, spacing: 8) {
                     Text("\(money(total)) across \(loans.count) \(loans.count == 1 ? "loan" : "loans")").font(.caption).foregroundStyle(.secondary)
-                    Text(sim.stuck ? "Payment doesn’t cover interest" : sim.payoff.map { "Paid off by \(DU.monthLabel($0))" } ?? "Paid off")
+                    Text(all.stuck ? "Payment doesn’t cover interest" : all.loanMonths > 0 ? "Paid off by \(DU.monthLabel(all.loansDone(now)))" : "Paid off")
                         .font(.system(size: 30, weight: .heavy)).minimumScaleFactor(0.6)
-                    if !sim.stuck {
-                        Text("About \(money0(sim.interest)) in interest from today.").font(.subheadline).foregroundStyle(.secondary)
+                    if !all.stuck {
+                        Text("About \(money0(all.loanInterest)) in interest from today.").font(.subheadline).foregroundStyle(.secondary)
+                        if cardsLeft {
+                            Text(roll ? "Includes your card and personal loan payments rolling into student loans after they're paid off in \(DU.monthLabel(all.debtsDone(now))). You can change this in the Debts section."
+                                      : "Card and personal loan payments don't roll into student loans. Turn that on in the Debts section to finish sooner.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading).card()
@@ -36,7 +46,7 @@ struct StudentLoansSection: View {
                 planCard(sim)
 
                 ForEach(loans) { l in
-                    Button { editing = l } label: { LoanCard(loan: l, item: sim.items[l.id]) }.buttonStyle(.plain)
+                    Button { editing = l } label: { LoanCard(loan: l, item: sim.items[l.id], payoff: all.loanPayoff[l.id].map { DU.addMonths(now, $0) }) }.buttonStyle(.plain)
                 }
             }
             Button { editing = Loan() } label: { Label("Add a student loan", systemImage: "plus") }
@@ -86,6 +96,7 @@ struct LoanCard: View {
     @EnvironmentObject var store: Store
     let loan: Loan
     let item: LoanSim.Item?
+    let payoff: String?
 
     var body: some View {
         let e = store.engine
@@ -102,7 +113,7 @@ struct LoanCard: View {
             HStack {
                 Text("\(Engine.loanKindLabel(loan.kind)), \(String(format: "%.2f", loan.apr))%")
                 Spacer()
-                if let p = item?.payoff { Text("Paid off \(DU.monthLabel(p, short: true))") }
+                if let p = payoff { Text("Paid off \(DU.monthLabel(p, short: true))") }
             }
             .font(.caption).foregroundStyle(.secondary)
             if let it = item, !inRepay, it.atRepay > bal + 0.5 {
