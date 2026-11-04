@@ -126,3 +126,122 @@ extension Engine {
     /// The paycheck line for the student loan plan, if it's been added.
     var loanPlanRec: Recurring? { s.recurring.first { $0.loanPlan } }
 }
+
+/// Debts and student loans paid off together, month by month, for the Payoff chart.
+/// Same math as the web app's Payoff tab, so both show the same dates.
+struct PayoffSim {
+    var debtSeries: [Double] = []      // index = months from now
+    var loanSeries: [Double] = []
+    var debtPayoff: [String: Int] = [:]
+    var loanPayoff: [String: Int] = [:]
+    var interest = 0.0
+    var months = 0                     // until everything is paid off
+    var debtMonths = 0                 // last card or personal loan
+    var loanMonths = 0                 // last student loan
+    var count = 0                      // debts and loans with a balance
+    var stuck = false
+
+    func total(_ m: Int) -> Double {
+        (m < debtSeries.count ? debtSeries[m] : 0) + (m < loanSeries.count ? loanSeries[m] : 0)
+    }
+    func debtsDone(_ now: String) -> String { DU.addMonths(now, debtMonths) }
+    func loansDone(_ now: String) -> String { DU.addMonths(now, loanMonths) }
+    func finish(_ now: String) -> String { DU.addMonths(now, months) }
+}
+
+extension Engine {
+    /// A student loan's numbers the way the web app works them out: interest builds
+    /// daily (simple interest) until repayment starts, and the standard payment is
+    /// figured on the balance at that point.
+    func loanCalc(_ l: Loan, balances: [String: Double]) -> (now: Double, atStart: Double, est: Double, start: String) {
+        let today = DU.today
+        let asOf = DU.parseISO(l.asOf) ?? today
+        let rate = l.apr / 100
+        let accrues = accruesInSchool(l)
+        // Payments marked paid on your paychecks come off both numbers.
+        let days = max(0, Double(DU.days(asOf, today)))
+        let simpleNow = l.balance + (accrues ? l.balance * rate / 365 * days : 0)
+        let paid = max(0, simpleNow - (balances[l.id] ?? simpleNow))
+        let start = l.repayStart.count >= 7 ? String(l.repayStart.prefix(7)) : ""
+        let daysToStart = start.isEmpty ? 0 : max(0, Double(DU.days(asOf, DU.firstOfMonth(start))))
+        let atStart = max(0, l.balance + (accrues ? l.balance * rate / 365 * daysToStart : 0) - paid)
+        let n = Double(max(1, l.term * 12)), r = rate / 12
+        let est = r > 0 ? atStart * r / (1 - pow(1 + r, -n)) : atStart / n
+        return (max(0, simpleNow - paid), atStart, est, start)
+    }
+
+    /// Runs your cards, personal loans and student loans together. With `roll`, once the
+    /// cards and personal loans are paid off, their payments go to student loans.
+    func simulateAll(extra: Double, strategy: String, roll: Bool) -> PayoffSim {
+        var r = PayoffSim()
+        let now = DU.ym(Date())
+        struct D { var id: String; var bal: Double; var apr: Double; var min: Double; var loan: Bool
+                   var start = 0; var startBal = 0.0; var growth = 0.0 }
+
+        var ds = s.debts.map { D(id: $0.id, bal: curBal($0), apr: $0.apr, min: $0.min, loan: false) }.filter { $0.bal > 0.005 }
+        let lb = loanBalances()
+        let loans = s.loans.map { ($0, loanCalc($0, balances: lb)) }.filter { $0.1.atStart > 0.005 }
+        let planPay = s.loanPlan.payment
+        let estSum = loans.reduce(0) { $0 + $1.1.est }
+        for (l, c) in loans {
+            let pay = l.payment > 0 ? l.payment : planPay > 0 && estSum > 0 ? planPay * c.est / estSum : c.est
+            let st = c.start.isEmpty ? 0 : max(0, DU.monthsDiff(now, c.start))
+            ds.append(D(id: l.id, bal: st > 0 ? c.now : c.atStart, apr: l.apr, min: pay, loan: true,
+                        start: st, startBal: c.atStart, growth: st > 0 ? (c.atStart - c.now) / Double(st) : 0))
+        }
+        r.count = ds.count
+        let poolBase = ds.filter { !$0.loan }.reduce(0) { $0 + $1.min } + extra
+        let cmp = order(strategy)
+        let target = s.targetDebt
+        func isTarget(_ d: D) -> Bool { strategy == "target" && d.id == target }
+
+        var m = 0
+        func active(_ d: D) -> Bool { d.bal > 0.005 && (!d.loan || m > d.start) }
+        func record() {
+            r.debtSeries.append(ds.filter { !$0.loan }.reduce(0) { $0 + max(0, $1.bal) })
+            r.loanSeries.append(ds.filter { $0.loan }.reduce(0) { $0 + max(0, $1.bal) })
+        }
+        record()
+
+        while ds.contains(where: { $0.bal > 0.005 }) && m < 480 {
+            m += 1
+            // Before repayment, loans grow toward their balance at repayment.
+            for i in ds.indices where ds[i].loan {
+                if m <= ds[i].start { ds[i].bal += ds[i].growth }
+                else if m == ds[i].start + 1 && ds[i].startBal > 0 { ds[i].bal = ds[i].startBal }
+            }
+            for i in ds.indices where active(ds[i]) { let x = ds[i].bal * ds[i].apr / 1200; ds[i].bal += x; r.interest += x }
+
+            var pool = poolBase
+            for i in ds.indices where !ds[i].loan && active(ds[i]) { let p = min(ds[i].min, ds[i].bal, pool); ds[i].bal -= p; pool -= p }
+            for i in ds.indices where ds[i].loan && active(ds[i]) { let p = min(ds[i].min, ds[i].bal); ds[i].bal -= p }
+
+            let orderIdx = ds.indices.filter { active(ds[$0]) && (!ds[$0].loan || roll || isTarget(ds[$0])) }
+                .sorted { cmp((ds[$0].id, ds[$0].bal, ds[$0].apr), (ds[$1].id, ds[$1].bal, ds[$1].apr)) }
+            let cardsLeft = ds.contains { !$0.loan && $0.bal > 0.005 }
+            let anyCardInOrder = orderIdx.contains { !ds[$0].loan }
+            // Extra goes to cards and personal loans first, then (with roll) to student loans.
+            for i in orderIdx {
+                if pool <= 0.005 { break }
+                if ds[i].loan && !roll && !isTarget(ds[i]) { continue }
+                if ds[i].loan && !isTarget(ds[i]) && cardsLeft && anyCardInOrder { continue }
+                let p = min(pool, ds[i].bal); ds[i].bal -= p; pool -= p
+            }
+            for i in orderIdx {
+                if pool <= 0.005 { break }
+                let p = min(pool, ds[i].bal); ds[i].bal -= p; pool -= p
+            }
+
+            for i in ds.indices where ds[i].bal <= 0.005 && (!ds[i].loan || m > ds[i].start) {
+                if ds[i].loan, r.loanPayoff[ds[i].id] == nil { ds[i].bal = 0; r.loanPayoff[ds[i].id] = m }
+                if !ds[i].loan, r.debtPayoff[ds[i].id] == nil { ds[i].bal = 0; r.debtPayoff[ds[i].id] = m }
+            }
+            record()
+        }
+        r.months = m
+        r.stuck = m >= 480
+        r.debtMonths = r.debtPayoff.values.max() ?? 0
+        r.loanMonths = r.loanPayoff.values.max() ?? 0
+        return r
+    }
+}
