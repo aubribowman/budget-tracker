@@ -16,21 +16,34 @@ struct PurchasesView: View {
         let shown = filter == nil ? all : all.filter { $0.recId == filter }
         NavigationStack {
             List {
+                #if os(iOS)
+                Section {
+                    MonthPill()
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                }
+                .listSectionSpacing(Space.s)
+                #endif
                 Section {
                     VStack(spacing: 8) {
                         ForEach(envs) { r in categoryCard(r) }
                     }
+                    #if os(macOS)
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    #else
+                    // No side inset: the list already indents its sections, so these line up with the purchases below.
+                    .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+                    #endif
                     .listRowBackground(Color.clear)
                 }
                 #if os(macOS)
                 // Mac: one rounded card holding every purchase, like the other tabs.
                 Section {
                     VStack(alignment: .leading, spacing: 0) {
-                        HStack {
-                            Text(listTitle).font(.headline)
-                            Spacer()
-                            Text(money(shown.reduce(0) { $0 + $1.buy.amt })).font(.headline).monospacedDigit()
+                        ValueRow {
+                            CardHeader(listTitle)
+                        } value: {
+                            Text(money(shown.reduce(0) { $0 + $1.buy.amt })).font(.ui(.headline)).monospacedDigit()
                         }
                         .padding(.bottom, 8)
                         if shown.isEmpty { emptyText.padding(.vertical, 6) }
@@ -64,15 +77,15 @@ struct PurchasesView: View {
             }
             .macListLook()
             .toolbar {
-                ToolbarItem(placement: .principal) { MonthBar() }
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
                         Button { adding = true } label: { Label("Log a purchase", systemImage: "square.and.pencil") }
                         Button { bankImport = true } label: { Label("Import from bank", systemImage: "building.columns") }
                     } label: { Image(systemName: "plus") }
+                    .accessibilityLabel("Add a purchase")
                 }
             }
-            .inlineTitle()
+            .monthScreen("Purchases")
             .sheet(isPresented: $adding) { AddPurchaseSheet(envs: envs, preset: filter).macSheet() }
             .sheet(isPresented: $bankImport) { BankImportView().macSheet() }
         }
@@ -81,8 +94,10 @@ struct PurchasesView: View {
     var listTitle: String { filter.flatMap { f in envs.first { $0.id == f }?.name } ?? "All purchases" }
 
     var emptyText: some View {
-        Text("No purchases logged\(filter == nil ? "" : " in this category") for \(DU.monthLabel(store.month)) yet. Tap + to add one.")
-            .foregroundStyle(.secondary).font(.subheadline)
+        EmptyState(icon: "bag", title: "No purchases yet",
+                   message: "Nothing logged\(filter == nil ? "" : " in this category") for \(DU.monthLabel(store.month)).",
+                   color: TypeInfo.of("expense").color,
+                   actionTitle: envs.isEmpty ? nil : "Log a purchase") { adding = true }
     }
 
     func delete(_ x: BuyEntry) {
@@ -90,13 +105,15 @@ struct PurchasesView: View {
     }
 
     func purchaseRow(_ x: BuyEntry) -> some View {
-        HStack {
+        let cat = envs.first { $0.id == x.recId }
+        return ValueRow(spacing: Space.m) {
+            IconBadge(icon: cat.map { ItemIcon.of($0) } ?? "bag", color: TypeInfo.of("expense").color)
             VStack(alignment: .leading, spacing: 2) {
                 Text(x.buy.note.isEmpty ? "Purchase" : x.buy.note)
                 Text("\(DU.parseISO(x.buy.date).map { DU.short($0) } ?? ""), \(envs.first { $0.id == x.recId }?.name ?? "Spending")\(x.buy.tx != nil ? ", imported" : "")")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.ui(.caption)).foregroundStyle(.secondary)
             }
-            Spacer()
+        } value: {
             Text(money(abs(x.buy.amt))).monospacedDigit().foregroundStyle(x.buy.amt < 0 ? Theme.good : .primary)
         }
         .contentShape(Rectangle())
@@ -119,20 +136,21 @@ struct PurchasesView: View {
         let on = filter == r.id
         return Button { filter = on ? nil : r.id } label: {
             VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(r.name).font(.subheadline.weight(.semibold)).lineLimit(1)
-                    Spacer()
+                ValueRow(spacing: Space.s) {
+                    IconBadge(icon: ItemIcon.of(r), color: TypeInfo.of("expense").color, size: 28)
+                    Text(r.name).font(.ui(.subheadline).weight(.semibold)).lineLimit(1)
+                } value: {
                     Text(over ? "Over \(money(spent - budget))" : "\(money(budget - spent)) left")
-                        .font(.headline).monospacedDigit().foregroundStyle(over ? Theme.over : .primary)
+                        .font(.ui(.headline)).monospacedDigit().foregroundStyle(over ? Theme.over : .primary)
                 }
                 ProgressBar(value: budget > 0 ? spent / budget : 0, color: over ? Theme.over : TypeInfo.of("expense").color, height: 6)
-                Text("\(money(spent)) of \(money(budget))").font(.caption2).foregroundStyle(.secondary)
+                Text("\(money(spent)) of \(money(budget))").font(.ui(.caption2)).foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .padding(12)
-            .background(Theme.card, in: RoundedRectangle(cornerRadius: 14))
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(on ? Theme.accent : .clear, lineWidth: 2))
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: Radius.inner, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.inner, style: .continuous).stroke(on ? Theme.accent : .clear, lineWidth: 2))
         }
         .buttonStyle(.plain)
     }
@@ -157,8 +175,8 @@ struct AddPurchaseSheet: View {
                 TextField("Amount", text: $amount).decimalPad()
                 DatePicker("Date", selection: $date, displayedComponents: .date)
                 Picker("Category", selection: $recId) { ForEach(envs) { Text($0.name).tag($0.id) } }
-                if let error { Text(error).foregroundStyle(Theme.bad).font(.footnote) }
-                Section { Text("Counts toward the paycheck you were most recently paid before this date.").font(.footnote).foregroundStyle(.secondary) }
+                if let error { Text(error).foregroundStyle(Theme.bad).font(.ui(.footnote)) }
+                Section { Text("Counts toward the paycheck you were most recently paid before this date.").font(.ui(.footnote)).foregroundStyle(.secondary) }
             }
             .navigationTitle("Log a purchase")
             .inlineTitle()

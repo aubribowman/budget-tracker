@@ -14,18 +14,18 @@ struct GoalsView: View {
             VStack(spacing: 16) {
                 if goals.isEmpty {
                     VStack(spacing: 10) {
-                        Image(systemName: "target").font(.largeTitle).foregroundStyle(Theme.accent)
-                        Text("Save toward something").font(.title3.bold())
+                        Image(systemName: "target").font(.ui(.largeTitle)).foregroundStyle(Theme.accent)
+                        Text("Save toward something").font(.ui(.title3).bold())
                         Text("Add a goal like an emergency fund or a trip. Link a savings item from your paychecks to it, and every time you mark it paid, the goal moves forward.")
                             .multilineTextAlignment(.center).foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity).card()
                 } else {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Saved across \(goals.count) \(goals.count == 1 ? "goal" : "goals")").font(.caption).foregroundStyle(.secondary)
-                        Text(money(saved)).font(.system(size: 34, weight: .heavy, design: .rounded)).monospacedDigit()
+                        Text("Saved across \(goals.count) \(goals.count == 1 ? "goal" : "goals")").font(.ui(.caption)).foregroundStyle(.secondary)
+                        Text(money(saved)).font(.display(size: 34, weight: .heavy)).monospacedDigit()
                         ProgressBar(value: target > 0 ? saved / target : 0, color: TypeInfo.of("savings").color)
-                        Text("of \(money(target))").font(.subheadline).foregroundStyle(.secondary)
+                        Text("of \(money(target))").font(.ui(.subheadline)).foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading).card()
 
@@ -35,7 +35,7 @@ struct GoalsView: View {
                 }
 
                 Button { editing = Goal() } label: {
-                    Label("Add a goal", systemImage: "plus").font(.headline)
+                    Label("Add a goal", systemImage: "plus").font(.ui(.headline))
                 }
                 .padding(.top, 4)
             }
@@ -57,30 +57,30 @@ struct GoalCard: View {
         let st = store.engine.goalStatus(goal)
         let linked = store.state.recurring.filter { $0.goalId == goal.id }
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(goal.name).font(.headline)
-                Spacer()
+            ValueRow(alignment: .firstTextBaseline) {
+                Text(goal.name).font(.ui(.headline))
+            } value: {
                 if st.done { Tag(text: "Reached", color: Theme.good) }
                 else if let ok = st.onTrack { Tag(text: ok ? "On track" : "Behind", color: ok ? Theme.good : Theme.over) }
             }
-            HStack(alignment: .firstTextBaseline) {
-                Text(money(st.saved)).font(.title2.bold()).monospacedDigit()
-                Spacer()
-                Text("of \(money(goal.target))").font(.subheadline).foregroundStyle(.secondary)
+            ValueRow(alignment: .firstTextBaseline) {
+                Text(money(st.saved)).font(.display(.title2, weight: .bold)).monospacedDigit().rollingNumber(st.saved)
+            } value: {
+                Text("of \(money(goal.target))").font(.ui(.subheadline)).foregroundStyle(.secondary)
             }
             ProgressBar(value: st.progress, color: st.done ? Theme.good : TypeInfo.of("savings").color)
             VStack(alignment: .leading, spacing: 4) {
                 if !st.done {
-                    Text(paceLine(st)).font(.subheadline).foregroundStyle(.secondary)
+                    Text(paceLine(st)).font(.ui(.subheadline)).foregroundStyle(.secondary)
                 }
                 if let need = st.needPerMonth, !st.done, let due = DU.parseISO(goal.due) {
                     Text("Due \(DU.monthLabel(DU.ym(due))): save \(money(need)) a month to make it.")
-                        .font(.caption).foregroundStyle(st.onTrack == false ? Theme.over : .secondary)
+                        .font(.ui(.caption)).foregroundStyle(st.onTrack == false ? Theme.over : .secondary)
                 }
                 if linked.isEmpty {
-                    Text("Not linked to a savings item yet").font(.caption).foregroundStyle(.tertiary)
+                    Text("Not linked to a savings item yet").font(.ui(.caption)).foregroundStyle(.tertiary)
                 } else {
-                    Text("From " + linked.map(\.name).joined(separator: ", ")).font(.caption).foregroundStyle(.secondary)
+                    Text("From " + linked.map(\.name).joined(separator: ", ")).font(.ui(.caption)).foregroundStyle(.secondary)
                 }
             }
         }

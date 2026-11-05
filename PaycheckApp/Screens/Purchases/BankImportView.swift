@@ -64,8 +64,8 @@ struct BankImportView: View {
         ScrollView {
             VStack(spacing: 16) {
                 VStack(spacing: 10) {
-                    Image(systemName: "building.columns").font(.largeTitle).foregroundStyle(Theme.accent)
-                    Text("Bring in your bank transactions").font(.title3.bold())
+                    Image(systemName: "building.columns").font(.ui(.largeTitle)).foregroundStyle(Theme.accent)
+                    Text("Bring in your bank transactions").font(.ui(.title3).bold())
                     Text("Download your transactions from your bank’s website as a CSV file and save it to Files. Then choose it here. You’ll check where each one goes before anything is added.")
                         .multilineTextAlignment(.center).foregroundStyle(.secondary)
                     Button { choosing = true } label: {
@@ -78,14 +78,14 @@ struct BankImportView: View {
 
                 if let error {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
-                        .font(.subheadline).foregroundStyle(Theme.bad)
+                        .font(.ui(.subheadline)).foregroundStyle(Theme.bad)
                         .frame(maxWidth: .infinity, alignment: .leading).card()
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("How it works").font(.headline)
+                    CardHeader("How it works")
                     Text("• Spending goes into a category, like Groceries or Gas.\n• Bill payments mark that bill paid on the right paycheck.\n• Deposits and anything you don’t pick are skipped.\n• It remembers your choices for each store, and won’t add the same transaction twice.")
-                        .font(.subheadline).foregroundStyle(.secondary)
+                        .font(.ui(.subheadline)).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading).card()
             }
@@ -103,13 +103,13 @@ struct BankImportView: View {
         return List {
             Section {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(fileName).font(.subheadline.weight(.semibold)).lineLimit(1)
+                    Text(fileName).font(.ui(.subheadline).weight(.semibold)).lineLimit(1)
                     Text("\(rows.count) new \(rows.count == 1 ? "transaction" : "transactions")" +
                          (skippedDupes > 0 ? ", \(skippedDupes) already imported" : ""))
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.ui(.caption)).foregroundStyle(.secondary)
                 }
                 Toggle("Spending shows as positive", isOn: $flip)
-                    .font(.subheadline)
+                    .font(.ui(.subheadline))
                     .onChange(of: flip) { _, _ in reparse() }
             } footer: {
                 Text("Turn this on if your spending landed under Money in.")
@@ -128,14 +128,14 @@ struct BankImportView: View {
         let t = r.wrappedValue.tx
         return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Text(t.desc.isEmpty ? "Transaction" : t.desc).font(.subheadline).lineLimit(2)
+                Text(t.desc.isEmpty ? "Transaction" : t.desc).font(.ui(.subheadline)).lineLimit(2)
                 Spacer()
-                Text(money(abs(t.amount))).monospacedDigit().font(.subheadline.weight(.semibold))
+                Text(money(abs(t.amount))).monospacedDigit().font(.ui(.subheadline).weight(.semibold))
                     .foregroundStyle(t.isOutflow ? .primary : Theme.good)
             }
             HStack(spacing: 8) {
                 Text(t.pocket.isEmpty ? DU.short(t.date) : "\(DU.short(t.date)) · \(t.pocket)")
-                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    .font(.ui(.caption)).foregroundStyle(.secondary).lineLimit(1)
                 if r.wrappedValue.fromRule && r.wrappedValue.target == r.wrappedValue.suggested {
                     Tag(text: "Your rule")
                 }
@@ -161,11 +161,11 @@ struct BankImportView: View {
                 }
                 .pickerStyle(.menu)
                 .labelsHidden()
-                .font(.caption)
+                .font(.ui(.caption))
             }
             if r.wrappedValue.target != r.wrappedValue.suggested || r.wrappedValue.fromRule {
                 Toggle("Always do this for \(merchantLabel(t.desc))", isOn: r.remember)
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.ui(.caption)).foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 2)

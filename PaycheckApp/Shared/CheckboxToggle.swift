@@ -7,7 +7,7 @@ struct CheckboxToggle: ToggleStyle {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Image(systemName: c.isOn ? "checkmark.square.fill" : "square")
                     .foregroundStyle(c.isOn ? Theme.rosy : .secondary)
-                    .font(.title3)
+                    .font(.ui(.title3))
                     .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 5 }
                 c.label.multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)

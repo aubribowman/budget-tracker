@@ -10,10 +10,10 @@ struct ExtraLineCard: View {
         let when = e.extraRec?.when ?? store.state.extraWhen ?? "1"
         let focus = e.focusDebtId()
         VStack(alignment: .leading, spacing: 10) {
-            Text("Extra payment on your paychecks").font(.headline)
+            CardHeader("Extra payment on your paychecks")
             Text(on ? "Shows up as “Extra → \(e.debtName(focus))”. When you mark it paid, it’s recorded against that debt."
                     : "Add your \(money(store.state.extra)) extra as its own line so you can tick it off and see which debt it went to.")
-                .font(.subheadline).foregroundStyle(.secondary)
+                .font(.ui(.subheadline)).foregroundStyle(.secondary)
             Picker("Which paycheck pays it", selection: Binding(get: { when }, set: { store.setExtraWhen($0) })) {
                 Text("First paycheck (\(money(store.state.extra)))").tag("1")
                 Text("Second paycheck (\(money(store.state.extra)))").tag("2")

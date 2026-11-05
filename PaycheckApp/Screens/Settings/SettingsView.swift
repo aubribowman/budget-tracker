@@ -74,7 +74,7 @@ struct SettingsView: View {
                         Button { exportURL = writeBackup() } label: { Label("Create a backup", systemImage: "square.and.arrow.up") }
                     }
                 } header: { Text("Your data") } footer: {
-                    Text("Backups use the same file as the web app, so you can move your plan between them. To bring your plan over, use Download a backup in the web app’s Setup tab, save it to Files, then import it here.")
+                    Text("A backup is one file with your whole plan. Save it somewhere safe, or import it on another device to pick up where you left off.")
                 }
 
                 Section {

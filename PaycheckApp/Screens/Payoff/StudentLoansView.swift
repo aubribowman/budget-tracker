@@ -20,8 +20,8 @@ struct StudentLoansSection: View {
         VStack(spacing: 16) {
             if loans.isEmpty {
                 VStack(spacing: 10) {
-                    Image(systemName: "graduationcap").font(.largeTitle).foregroundStyle(Theme.accent)
-                    Text("Add your student loans").font(.title3.bold())
+                    Image(systemName: "graduationcap").font(.ui(.largeTitle)).foregroundStyle(Theme.accent)
+                    Text("Add your student loans").font(.ui(.title3).bold())
                     Text("See what you'll owe when repayment starts, your monthly payment, and when you'll be done.")
                         .multilineTextAlignment(.center).foregroundStyle(.secondary)
                 }
@@ -29,15 +29,15 @@ struct StudentLoansSection: View {
             } else {
                 // Headline
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("\(money(total)) across \(loans.count) \(loans.count == 1 ? "loan" : "loans")").font(.caption).foregroundStyle(.secondary)
+                    Text("\(money(total)) across \(loans.count) \(loans.count == 1 ? "loan" : "loans")").font(.ui(.caption)).foregroundStyle(.secondary)
                     Text(all.stuck ? "Payment doesn’t cover interest" : all.loanMonths > 0 ? "Paid off by \(DU.monthLabel(all.loansDone(now)))" : "Paid off")
-                        .font(.system(size: 30, weight: .heavy)).minimumScaleFactor(0.6)
+                        .font(.display(.title, weight: .heavy)).minimumScaleFactor(0.6)
                     if !all.stuck {
-                        Text("About \(money0(all.loanInterest)) in interest from today.").font(.subheadline).foregroundStyle(.secondary)
+                        Text("About \(money0(all.loanInterest)) in interest from today.").font(.ui(.subheadline)).foregroundStyle(.secondary)
                         if cardsLeft {
                             Text(roll ? "Includes your card and personal loan payments rolling into student loans after they're paid off in \(DU.monthLabel(all.debtsDone(now))). You can change this in the Debts section."
                                       : "Card and personal loan payments don't roll into student loans. Turn that on in the Debts section to finish sooner.")
-                                .font(.caption).foregroundStyle(.secondary)
+                                .font(.ui(.caption)).foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -62,7 +62,7 @@ struct StudentLoansSection: View {
     func planCard(_ sim: LoanSim) -> some View {
         let onPaychecks = store.engine.loanPlanRec != nil
         return VStack(alignment: .leading, spacing: 10) {
-            Text("Your payment plan").font(.headline)
+            CardHeader("Your payment plan")
             HStack {
                 Text("Monthly payment")
                 Spacer()
@@ -73,7 +73,7 @@ struct StudentLoansSection: View {
             Text(store.state.loanPlan.payment > 0
                  ? "Standard plan would be \(money(sim.standardTotal))/month. Anything over each loan’s payment goes to the highest rate first."
                  : "Leave blank to use the standard plan, \(money(sim.standardTotal))/month.")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.ui(.caption)).foregroundStyle(.secondary)
             DatePicker("Start paying", selection: $planStart, displayedComponents: .date)
                 .onChange(of: planStart) { _, _ in commitPlan() }
             Button(onPaychecks ? "Remove from paychecks" : "Add to paychecks") { commitPlan(); store.setLoanPlanLine(on: !onPaychecks) }
@@ -81,7 +81,7 @@ struct StudentLoansSection: View {
                 .tint(onPaychecks ? .gray : Theme.accent)
             Text(onPaychecks ? "Shows up as “Student loans” on your first paycheck each month starting \(DU.monthLabel(store.engine.loanPlanRec?.start ?? DU.ym(planStart))). Marking it paid lowers your balances."
                              : "Puts \(money(sim.monthly)) on your first paycheck each month so you can tick it off.")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.ui(.caption)).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading).card()
         .keyboardDoneButton { commitPlan() }
@@ -106,23 +106,23 @@ struct LoanCard: View {
         let bal = item?.balanceNow ?? loan.balance
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(loan.name).font(.headline)
+                Text(loan.name).font(.ui(.headline))
                 Spacer()
                 Tag(text: inRepay ? "In repayment" : "Starts \(DU.monthLabel(repay, short: true))", color: inRepay ? Theme.accent : Theme.midnight)
             }
-            Text(money(bal)).font(.title2.weight(.heavy)).monospacedDigit()
+            Text(money(bal)).font(.display(.title2, weight: .bold)).monospacedDigit().rollingNumber(bal)
             HStack {
                 Text("\(Engine.loanKindLabel(loan.kind)), \(String(format: "%.2f", loan.apr))%")
                 Spacer()
                 if let p = payoff { Text("Paid off \(DU.monthLabel(p, short: true))") }
             }
-            .font(.caption).foregroundStyle(.secondary)
+            .font(.ui(.caption)).foregroundStyle(.secondary)
             if let it = item, !inRepay, it.atRepay > bal + 0.5 {
                 Text("About \(money(it.atRepay)) when repayment starts. \(money(it.atRepay - bal)) of interest builds up before then.")
-                    .font(.caption).foregroundStyle(Theme.over)
+                    .font(.ui(.caption)).foregroundStyle(Theme.over)
             }
             if let it = item {
-                Text("Standard payment: \(money(it.standard))/month over \(loan.term) years").font(.caption).foregroundStyle(.secondary)
+                Text("Standard payment: \(money(it.standard))/month over \(loan.term) years").font(.ui(.caption)).foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading).card()

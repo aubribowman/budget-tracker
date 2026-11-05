@@ -41,9 +41,9 @@ struct LockScreen: View {
             VStack(spacing: 16) {
                 Image(systemName: AppLock.methodName == "Touch ID" ? "touchid" : "faceid")
                     .font(.system(size: 56)).foregroundStyle(Theme.accent)
-                Text("Paycheck Plan is locked").font(.title3.bold())
+                Text("Paycheck Plan is locked").font(.ui(.title3).bold())
                 Button(action: unlock) {
-                    Text("Unlock with \(AppLock.methodName)").font(.headline).padding(.horizontal, 12).padding(.vertical, 6)
+                    Text("Unlock with \(AppLock.methodName)").font(.ui(.headline)).padding(.horizontal, 12).padding(.vertical, 6)
                 }
                 .buttonStyle(.borderedProminent)
             }

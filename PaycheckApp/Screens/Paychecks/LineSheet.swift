@@ -22,6 +22,7 @@ struct LineSheet: View {
                         Picker("", selection: Binding(get: { line.status }, set: { store.setStatus(line, $0) })) {
                             Text("Not paid").tag("unpaid"); Text("Set aside").tag("aside"); Text("Paid").tag("paid")
                         }.pickerStyle(.segmented).frame(maxWidth: 260)
+                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)   // segments don't wrap
                     }
                     HStack {
                         Text(line.isEnv ? "Budget this check" : "Amount")

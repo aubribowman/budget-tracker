@@ -48,7 +48,7 @@ struct IncomeItemSheet: View {
                     TextField("Where it's from (side job, refund…)", text: $item.name)
                     TextField("Amount", text: $amount).decimalPad()
                 } footer: {
-                    Text("Added to this paycheck's money coming in, so it shows in what's left to spend. Only this app counts it; the web app doesn't yet.")
+                    Text("Added to this paycheck's money coming in, so it shows in what's left to spend.")
                 }
                 if !isNew {
                     Button("Delete", role: .destructive) {

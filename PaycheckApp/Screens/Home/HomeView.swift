@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 /// First screen: a quick look at this paycheck, what's due, spending and debt.
 struct HomeView: View {
@@ -20,10 +21,11 @@ struct HomeView: View {
                     #if os(macOS)
                     // Mac windows don't show the big iPhone-style title, so put the greeting on the page.
                     Text(greeting)
-                        .font(.largeTitle.bold())
+                        .font(.display(.largeTitle, weight: .bold))
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.top, 4)
                     #endif
+                    PageTitle(greeting)
                     if store.isEmpty {
                         EmptyStart()
                     } else {
@@ -44,7 +46,7 @@ struct HomeView: View {
                         if !envs.isEmpty {
                             Button { adding = true } label: {
                                 Label("Log a purchase", systemImage: "plus.circle.fill")
-                                    .font(.headline)
+                                    .font(.ui(.headline))
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 6)
                             }
@@ -52,7 +54,7 @@ struct HomeView: View {
                         }
                         Button { windfall = true } label: {
                             Label("Got extra money? Plan it", systemImage: "sparkles")
-                                .font(.subheadline.weight(.semibold))
+                                .font(.ui(.subheadline).weight(.semibold))
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 4)
                         }
@@ -63,10 +65,11 @@ struct HomeView: View {
                 .readableWidth()
             }
             .background(Theme.bg)
-            .navigationTitle(greeting)
+            .pageTitle(greeting)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button { showSetup = true } label: { Image(systemName: "gearshape") }
+                        .accessibilityLabel("Setup")
                         .accessibilityLabel("Setup")
                 }
             }
@@ -101,32 +104,33 @@ private struct PaycheckSummary: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(DU.dayLabel(Date())).font(.subheadline).foregroundStyle(.secondary)
+            Text(DU.dayLabel(Date())).font(.ui(.subheadline)).foregroundStyle(.secondary)
             if let c = u.cur {
                 let t = store.engine.totals(c.key, c.n)
                 let left = t.left
-                Text("Left on this paycheck").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                Text("Left on this paycheck").font(.ui(.caption).weight(.semibold)).foregroundStyle(.secondary)
                 Text(money(left))
-                    .font(.system(size: 40, weight: .bold, design: .rounded)).monospacedDigit()
+                    .heroNumber(left)
                     .foregroundStyle(left < 0 ? Theme.over : .primary)
                 ProgressBar(value: t.actual > 0 ? (t.paid + t.aside) / t.actual : 0, color: Theme.moss)
-                Text("\(money(t.paid + t.aside)) of \(money(t.actual)) paid or set aside, from your \(DU.short(c.date)) paycheck")
-                    .font(.caption).foregroundStyle(.secondary)
+                // The figures are what you read first, so they're darker than the words around them.
+                Text("\(Text(money(t.paid + t.aside)).foregroundStyle(.primary).fontWeight(.semibold)) of \(Text(money(t.actual)).foregroundStyle(.primary).fontWeight(.semibold)) paid or set aside, from your \(DU.short(c.date)) paycheck")
+                    .font(.ui(.subheadline)).foregroundStyle(.secondary)
             } else {
-                Text("No paycheck yet this period").font(.headline)
+                Text("No paycheck yet this period").font(.ui(.headline))
             }
             if let n = u.next {
                 Divider()
-                HStack {
+                ValueRow {
                     Image(systemName: "calendar").foregroundStyle(Theme.accent)
-                    Text("Next payday").font(.subheadline)
-                    Spacer()
-                    Text("\(DU.short(n.date)), \(daysAway(n.date))").font(.subheadline.weight(.semibold))
+                    Text("Next payday").font(.ui(.subheadline))
+                } value: {
+                    Text("\(DU.short(n.date)), \(daysAway(n.date))").font(.ui(.subheadline).weight(.semibold))
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
+        .card(tint: Theme.leadCard)   // the one card Home leads with
     }
 
     func daysAway(_ d: Date) -> String {
@@ -136,7 +140,8 @@ private struct PaycheckSummary: View {
 }
 
 /// A Home card that folds down to its header and one summary number.
-/// Tapping the card opens its tab; the chevron folds it.
+/// Tapping the card opens its tab; the chevron folds it. There's no second arrow for
+/// "open", since two arrows side by side read as the same control.
 private struct HomeCard<Content: View>: View {
     @AppStorage(Fold.key) private var folded = ""
     let id: String
@@ -151,11 +156,10 @@ private struct HomeCard<Content: View>: View {
         let isFolded = Fold.has(folded, id)
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
-                Label(title, systemImage: icon).font(.headline).foregroundStyle(Theme.accent).lineLimit(1)
-                Image(systemName: "chevron.right").font(.caption2.weight(.bold)).foregroundStyle(.tertiary)
+                CardHeader(title, icon: icon)
                 Spacer(minLength: 8)
                 if isFolded {
-                    Text(summary).font(.subheadline.weight(.semibold)).monospacedDigit()
+                    Text(summary).font(.ui(.subheadline).weight(.semibold)).monospacedDigit()
                         .foregroundStyle(summaryColor).lineLimit(1).minimumScaleFactor(0.8)
                 }
                 Button { withAnimation(.snappy) { folded = Fold.toggled(folded, id) } } label: { FoldChevron(folded: isFolded) }
@@ -167,11 +171,13 @@ private struct HomeCard<Content: View>: View {
         .card()
         .contentShape(Rectangle())
         .onTapGesture(perform: open)
+        .accessibilityAction(named: "Open \(title)", open)
     }
 }
 
 /// Bills still to pay from this paycheck, plus anything past due.
 private struct DueCard: View {
+    @EnvironmentObject var store: Store
     let u: Engine.Upcoming
     let open: () -> Void
 
@@ -182,28 +188,42 @@ private struct DueCard: View {
         HomeCard(id: "home.due", title: "To pay now", icon: "checklist", summary: summary,
                  summaryColor: u.overdue.isEmpty ? .secondary : Theme.bad, open: open) {
             if u.toPay.isEmpty && u.overdue.isEmpty {
-                Text("You're all caught up.").font(.subheadline).foregroundStyle(.secondary)
+                EmptyState(icon: "checkmark.seal", title: "You're all caught up", color: Theme.good)
             } else {
-                if !u.toPay.isEmpty {
-                    HStack {
-                        Text("\(u.toPay.count) \(u.toPay.count == 1 ? "bill" : "bills") due")
-                        Spacer()
-                        Text(money(total)).monospacedDigit().fontWeight(.semibold)
+                if u.toPay.count == 1, let l = u.toPay.first {
+                    // One bill: just show it, rather than a "1 bill due" total that repeats its amount.
+                    ValueRow(spacing: Space.m) {
+                        IconBadge(icon: ItemIcon.of(l, in: store.state), color: TypeInfo.of(l.type).color, size: 36)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(l.name).lineLimit(1)
+                            if let d = l.dueDate {
+                                Text("Due \(DU.dayLabel(d))").font(.ui(.subheadline)).foregroundStyle(.secondary)
+                            }
+                        }
+                    } value: {
+                        Text(money(l.amount)).monospacedDigit().fontWeight(.semibold).rollingNumber(l.amount)
+                    }
+                } else if !u.toPay.isEmpty {
+                    ValueRow {
+                        Text("\(u.toPay.count) bills due")
+                    } value: {
+                        Text(money(total)).monospacedDigit().fontWeight(.semibold).rollingNumber(total)
                     }
                     ForEach(u.toPay.prefix(3), id: \.uid) { l in
-                        HStack {
-                            Text(l.name).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-                            Spacer()
-                            Text(money(l.amount)).font(.subheadline).monospacedDigit().foregroundStyle(.secondary)
+                        ValueRow(spacing: Space.s) {
+                            IconBadge(icon: ItemIcon.of(l, in: store.state), color: TypeInfo.of(l.type).color, size: 24)
+                            Text(l.name).font(.ui(.subheadline)).foregroundStyle(.secondary).lineLimit(1)
+                        } value: {
+                            Text(money(l.amount)).font(.ui(.subheadline)).monospacedDigit().foregroundStyle(.secondary)
                         }
                     }
                     if u.toPay.count > 3 {
-                        Text("and \(u.toPay.count - 3) more").font(.caption).foregroundStyle(.secondary)
+                        Text("and \(u.toPay.count - 3) more").font(.ui(.caption)).foregroundStyle(.secondary)
                     }
                 }
                 if !u.overdue.isEmpty {
                     Label("\(u.overdue.count) past due", systemImage: "exclamationmark.circle.fill")
-                        .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.bad)
+                        .font(.ui(.subheadline).weight(.semibold)).foregroundStyle(Theme.bad)
                 }
             }
         }
@@ -224,24 +244,75 @@ private struct SpendingCard: View {
         HomeCard(id: "home.spending", title: "Spending left", icon: "cart",
                  summary: over ? "Over \(money(spent - budget))" : "\(money(budget - spent)) left",
                  summaryColor: over ? Theme.over : .secondary, open: open) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(money(budget - spent)).font(.title2.bold()).monospacedDigit()
+            ValueRow(alignment: .firstTextBaseline) {
+                Text(money(budget - spent)).font(.display(.title2, weight: .bold)).monospacedDigit().rollingNumber(budget - spent)
                     .foregroundStyle(over ? Theme.over : .primary)
-                Spacer()
-                Text("of \(money(budget))").font(.subheadline).foregroundStyle(.secondary)
+            } value: {
+                Text("of \(money(budget))").font(.ui(.subheadline)).foregroundStyle(.secondary)
             }
             ProgressBar(value: budget > 0 ? spent / budget : 0,
                         color: over ? Theme.over : TypeInfo.of("expense").color, height: 6)
+            SpendingTrend(current: check)
             ForEach(lines.prefix(4), id: \.uid) { l in
                 let o = l.spent > l.env + 0.004
-                HStack {
-                    Text(l.name).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-                    Spacer()
+                ValueRow(spacing: Space.s) {
+                    IconBadge(icon: ItemIcon.of(l, in: store.state), color: TypeInfo.of(l.type).color, size: 24)
+                    Text(l.name).font(.ui(.subheadline)).foregroundStyle(.secondary).lineLimit(1)
+                } value: {
                     Text(o ? "Over \(money(l.spent - l.env))" : "\(money(l.env - l.spent)) left")
-                        .font(.subheadline).monospacedDigit()
+                        .font(.ui(.subheadline)).monospacedDigit()
                         .foregroundStyle(o ? Theme.over : .secondary)
                 }
             }
+        }
+    }
+}
+
+/// Small bars of what was spent on each of the last six paychecks, this one highlighted,
+/// so you can see at a glance whether this paycheck is running high or low.
+private struct SpendingTrend: View {
+    @EnvironmentObject var store: Store
+    let current: Check
+
+    struct Bar: Identifiable { let id: String; let label: String; let spent: Double; let now: Bool }
+
+    var body: some View {
+        let bars = recent()
+        // Only once there's something to compare with: at least one earlier paycheck with spending.
+        if bars.count >= 2 && bars.dropLast().contains(where: { $0.spent > 0.004 }) {
+            let past = bars.dropLast().map(\.spent)
+            let avg = past.reduce(0, +) / Double(past.count)
+            VStack(alignment: .leading, spacing: Space.xs) {
+                HStack {
+                    Text("Last \(bars.count) paychecks").font(.ui(.caption)).foregroundStyle(.secondary)
+                    Spacer()
+                    Text("Usually \(money0(avg))").font(.ui(.caption)).foregroundStyle(.secondary).monospacedDigit()
+                }
+                Chart(bars) { b in
+                    BarMark(x: .value("Paycheck", b.label), y: .value("Spent", b.spent), width: .ratio(0.6))
+                        .cornerRadius(3)
+                        .foregroundStyle(b.now ? TypeInfo.of("expense").color : Theme.track)
+                }
+                .chartXAxis(.hidden)
+                .chartYAxis(.hidden)
+                .frame(height: 44)
+                .animation(.snappy, value: bars.map(\.spent))
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Spending on recent paychecks: usually \(money0(avg)), \(money0(bars.last?.spent ?? 0)) so far on this one.")
+        }
+    }
+
+    /// This paycheck and up to five before it, oldest first.
+    func recent() -> [Bar] {
+        let e = store.engine
+        var checks: [Check] = []
+        var m = current.key
+        for _ in 0 ..< 4 { checks += e.checksIn(m); m = DU.addMonths(m, -1) }
+        let picked = checks.filter { $0.date <= current.date }.sorted { $0.date < $1.date }.suffix(6)
+        return picked.map { c in
+            let spent = e.lines(c.key, c.n).filter { $0.type == "expense" && !$0.skip }.reduce(0) { $0 + $1.spent }
+            return Bar(id: "\(c.key).\(c.n)", label: DU.short(c.date), spent: spent, now: c.key == current.key && c.n == current.n)
         }
     }
 }
@@ -255,11 +326,11 @@ private struct DebtSummary: View {
         let debts = store.state.debts
         let total = debts.reduce(0) { $0 + store.engine.curBal($1) }
         HomeCard(id: "home.debt", title: "Debt", icon: "creditcard", summary: money0(total), open: open) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(money(total)).font(.title2.bold()).monospacedDigit()
-                Spacer()
+            ValueRow(alignment: .firstTextBaseline) {
+                Text(money(total)).font(.display(.title2, weight: .bold)).monospacedDigit().rollingNumber(total)
+            } value: {
                 Text("across \(debts.count) \(debts.count == 1 ? "debt" : "debts")")
-                    .font(.subheadline).foregroundStyle(.secondary)
+                    .font(.ui(.subheadline)).foregroundStyle(.secondary)
             }
         }
     }
@@ -278,22 +349,22 @@ private struct GoalsSummary: View {
                  summary: goals.isEmpty ? "None yet" : "\(money0(saved)) of \(money0(target))", open: open) {
             if goals.isEmpty {
                 Text("Set a goal, like an emergency fund, and watch it grow each payday.")
-                    .font(.subheadline).foregroundStyle(.secondary)
+                    .font(.ui(.subheadline)).foregroundStyle(.secondary)
             } else {
                 ForEach(goals.prefix(3)) { g in
                     let st = store.engine.goalStatus(g)
                     VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(g.name).font(.subheadline).lineLimit(1)
-                            Spacer()
+                        ValueRow {
+                            Text(g.name).font(.ui(.subheadline)).lineLimit(1)
+                        } value: {
                             Text("\(money0(st.saved)) of \(money0(g.target))")
-                                .font(.subheadline).monospacedDigit().foregroundStyle(.secondary)
+                                .font(.ui(.subheadline)).monospacedDigit().foregroundStyle(.secondary)
                         }
                         ProgressBar(value: st.progress, color: st.done ? Theme.good : TypeInfo.of("savings").color, height: 6)
                     }
                 }
                 if goals.count > 3 {
-                    Text("and \(goals.count - 3) more").font(.caption).foregroundStyle(.secondary)
+                    Text("and \(goals.count - 3) more").font(.ui(.caption)).foregroundStyle(.secondary)
                 }
             }
         }
@@ -310,13 +381,13 @@ private struct ReviewPrompt: View {
     var body: some View {
         Button(action: open) {
             HStack(spacing: 12) {
-                Image(systemName: "list.bullet.clipboard").font(.title2).foregroundStyle(Theme.accent)
+                Image(systemName: "list.bullet.clipboard").font(.ui(.title2)).foregroundStyle(Theme.accent)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Your \(DU.monthName(month)) review is ready").font(.headline)
-                    Text("See how the month went in a minute.").font(.subheadline).foregroundStyle(.secondary)
+                    Text("Your \(DU.monthName(month)) review is ready").font(.ui(.headline))
+                    Text("See how the month went in a minute.").font(.ui(.subheadline)).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+                Image(systemName: "chevron.right").font(.ui(.caption).weight(.semibold)).foregroundStyle(.tertiary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .card()

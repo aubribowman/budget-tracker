@@ -6,14 +6,15 @@ struct PayoffLegendDot: View {
     let color: Color
     let label: String
     var value: String? = nil
-    var font: Font = .subheadline
+    var font: Font = .ui(.subheadline)
     var body: some View {
         HStack(spacing: 6) {
             Circle().fill(color).frame(width: 8, height: 8)
             Text(label).font(font)
             if let value { Text(value).font(font.weight(.bold)) }
         }
-        .fixedSize()
+        // Keep its natural width when there's room, but let the words wrap at large text sizes.
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -48,13 +49,21 @@ struct PayoffChartCard: View {
                     if loans {
                         AreaMark(x: .value("Month", p.date), yStart: .value("Owed", p.debt), yEnd: .value("Owed", p.debt + p.loan),
                                  series: .value("Group", "Student loans"))
-                            .foregroundStyle(Self.loanFill)
+                            .foregroundStyle(Self.loanFill.gradient)
+                            .interpolationMethod(.monotone)
                     }
                     if debts {
                         AreaMark(x: .value("Month", p.date), yStart: .value("Owed", 0), yEnd: .value("Owed", p.debt),
                                  series: .value("Group", "Cards"))
-                            .foregroundStyle(Self.debtFill)
+                            .foregroundStyle(Self.debtFill.gradient)
+                            .interpolationMethod(.monotone)
                     }
+                    // A crisp line along the top edge of everything owed.
+                    LineMark(x: .value("Month", p.date), y: .value("Owed", (debts ? p.debt : 0) + (loans ? p.loan : 0)),
+                             series: .value("Group", "Total"))
+                        .foregroundStyle(loans ? Self.loanColor : Self.debtColor)
+                        .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
+                        .interpolationMethod(.monotone)
                 }
                 ForEach(payoffs) { o in
                     PointMark(x: .value("Month", date(start, o.month)), y: .value("Owed", sim.total(o.month)))
@@ -65,6 +74,9 @@ struct PayoffChartCard: View {
                         }
                 }
                 if let picked {
+                    let m = monthIndex(picked, start)
+                    PointMark(x: .value("Month", date(start, m)), y: .value("Owed", sim.total(m)))
+                        .symbol { Circle().fill(Theme.accent).overlay(Circle().stroke(Theme.card, lineWidth: 2)).frame(width: 12, height: 12) }
                     RuleMark(x: .value("Month", picked))
                         .foregroundStyle(.secondary.opacity(0.5))
                         // Beside the line, inside the chart; flips to the left near the right edge.
@@ -117,6 +129,8 @@ struct PayoffChartCard: View {
                 }
             }
             .frame(height: 240)
+            // A light tick each time the picked month changes while scrubbing.
+            .sensoryFeedback(.selection, trigger: picked.map { monthIndex($0, start) })
 
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 12) { legend }
@@ -124,7 +138,7 @@ struct PayoffChartCard: View {
             }
             if sim.stuck {
                 Text("At these payments some balances never get paid off, so the chart stops at 50 years.")
-                    .font(.caption).foregroundStyle(Theme.over)
+                    .font(.ui(.caption)).foregroundStyle(Theme.over)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -132,12 +146,12 @@ struct PayoffChartCard: View {
     }
 
     @ViewBuilder var legend: some View {
-        if debts { PayoffLegendDot(color: Self.debtColor, label: "Cards & personal loans", font: .caption) }
-        if loans { PayoffLegendDot(color: Self.loanColor, label: "Student loans", font: .caption) }
+        if debts { PayoffLegendDot(color: Self.debtColor, label: "Cards & personal loans", font: .ui(.caption)) }
+        if loans { PayoffLegendDot(color: Self.loanColor, label: "Student loans", font: .ui(.caption)) }
         #if os(macOS)
-        Text("Hover over the chart for any month.").font(.caption).foregroundStyle(.secondary)
+        Text("Hover over the chart for any month.").font(.ui(.caption)).foregroundStyle(.secondary)
         #else
-        Text("Tap the chart for any month.").font(.caption).foregroundStyle(.secondary)
+        Text("Tap the chart for any month.").font(.ui(.caption)).foregroundStyle(.secondary)
         #endif
     }
 
@@ -149,26 +163,30 @@ struct PayoffChartCard: View {
 
     func date(_ start: Date, _ m: Int) -> Date { Calendar.current.date(byAdding: .month, value: m, to: start) ?? start }
 
+    func monthIndex(_ d: Date, _ start: Date) -> Int {
+        max(0, min(sim.debtSeries.count - 1, Calendar.current.dateComponents([.month], from: start, to: d).month ?? 0))
+    }
+
     func sameMonth(_ a: Date, _ b: Date) -> Bool { Calendar.current.isDate(a, equalTo: b, toGranularity: .month) }
 
     func callout(at d: Date, start: Date, payoffs: [Payoff]) -> some View {
-        let m = max(0, min(sim.debtSeries.count - 1, Calendar.current.dateComponents([.month], from: start, to: d).month ?? 0))
+        let m = monthIndex(d, start)
         let gone = payoffs.filter { $0.month == m }.map(\.name)
         return VStack(alignment: .leading, spacing: 3) {
-            Text(date(start, m).formatted(.dateTime.month(.wide).year())).font(.caption.weight(.semibold))
-            if debts { Text("Cards & loans \(money(sim.debtSeries[m]))").font(.caption) }
-            if loans { Text("Student loans \(money(m < sim.loanSeries.count ? sim.loanSeries[m] : 0))").font(.caption) }
-            if debts && loans { Text("Total \(money(sim.total(m)))").font(.caption.weight(.bold)) }
+            Text(date(start, m).formatted(.dateTime.month(.wide).year())).font(.ui(.caption).weight(.semibold))
+            if debts { Text("Cards & loans \(money(sim.debtSeries[m]))").font(.ui(.caption)) }
+            if loans { Text("Student loans \(money(m < sim.loanSeries.count ? sim.loanSeries[m] : 0))").font(.ui(.caption)) }
+            if debts && loans { Text("Total \(money(sim.total(m)))").font(.ui(.caption).weight(.bold)) }
             if !gone.isEmpty {
-                Text("Paid off: " + gone.joined(separator: ", ")).font(.caption2).foregroundStyle(Theme.good)
+                Text("Paid off: " + gone.joined(separator: ", ")).font(.ui(.caption2)).foregroundStyle(Theme.good)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .monospacedDigit()
         .frame(maxWidth: 210, alignment: .leading)
         .padding(10)
-        .background(Theme.card, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(.secondary.opacity(0.3)))
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: Radius.inner, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.inner, style: .continuous).stroke(.secondary.opacity(0.3)))
         .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
     }
 

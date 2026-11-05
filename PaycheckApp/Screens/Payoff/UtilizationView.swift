@@ -41,18 +41,18 @@ struct UtilizationCard: View {
             NavigationLink { UtilizationView() } label: {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Label("Credit utilization", systemImage: "gauge.with.dots.needle.33percent").font(.headline).foregroundStyle(Theme.accent)
+                        CardHeader("Credit utilization", icon: "gauge.with.dots.needle.33percent")
                         Spacer()
                         Tag(text: band.label, color: band.color)
-                        Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+                        Image(systemName: "chevron.right").font(.ui(.caption).weight(.semibold)).foregroundStyle(.tertiary)
                     }
                     HStack(alignment: .firstTextBaseline) {
-                        Text("\(Int(u.pct.rounded()))%").font(.title.bold()).monospacedDigit().foregroundStyle(band.color)
-                        Text("of \(money0(u.limit)) in limits").font(.subheadline).foregroundStyle(.secondary)
+                        Text("\(Int(u.pct.rounded()))%").font(.ui(.title).bold()).monospacedDigit().foregroundStyle(band.color)
+                        Text("of \(money0(u.limit)) in limits").font(.ui(.subheadline)).foregroundStyle(.secondary)
                     }
                     UtilBar(pct: u.pct)
                     if u.pct >= 30 {
-                        Text("Pay \(money(u.toReach(30))) to get under 30%.").font(.caption).foregroundStyle(.secondary)
+                        Text("Pay \(money(u.toReach(30))) to get under 30%.").font(.ui(.caption)).foregroundStyle(.secondary)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -73,13 +73,13 @@ struct UtilizationView: View {
         ScrollView {
             VStack(spacing: 16) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Overall").font(.caption).foregroundStyle(.secondary)
+                    Text("Overall").font(.ui(.caption)).foregroundStyle(.secondary)
                     HStack(alignment: .firstTextBaseline) {
-                        Text("\(Int(u.pct.rounded()))%").font(.system(size: 44, weight: .heavy, design: .rounded)).foregroundStyle(band.color)
+                        Text("\(Int(u.pct.rounded()))%").font(.display(size: 44, weight: .heavy)).foregroundStyle(band.color)
                         Tag(text: band.label, color: band.color)
                     }
                     UtilBar(pct: u.pct, height: 10)
-                    Text("\(money(u.balance)) used of \(money(u.limit))").font(.subheadline).foregroundStyle(.secondary)
+                    Text("\(money(u.balance)) used of \(money(u.limit))").font(.ui(.subheadline)).foregroundStyle(.secondary)
                     Divider()
                     targetRow("Under 30%", u.toReach(30))
                     targetRow("Under 10%", u.toReach(10))
@@ -90,25 +90,25 @@ struct UtilizationView: View {
                     let b = Utilization.band(c.pct)
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text(c.name).font(.headline)
+                            Text(c.name).font(.ui(.headline))
                             Spacer()
-                            Text("\(Int(c.pct.rounded()))%").font(.headline).monospacedDigit().foregroundStyle(b.color)
+                            Text("\(Int(c.pct.rounded()))%").font(.ui(.headline)).monospacedDigit().foregroundStyle(b.color)
                         }
                         UtilBar(pct: c.pct)
-                        Text("\(money(c.balance)) of \(money0(c.limit)) limit").font(.caption).foregroundStyle(.secondary)
+                        Text("\(money(c.balance)) of \(money0(c.limit)) limit").font(.ui(.caption)).foregroundStyle(.secondary)
                         if c.pct >= 30 {
-                            Text("Pay \(money(c.toReach(30))) to get this card under 30%.").font(.caption).foregroundStyle(Theme.over)
+                            Text("Pay \(money(c.toReach(30))) to get this card under 30%.").font(.ui(.caption)).foregroundStyle(Theme.over)
                         } else if c.pct >= 10 {
-                            Text("Pay \(money(c.toReach(10))) to get it under 10%.").font(.caption).foregroundStyle(.secondary)
+                            Text("Pay \(money(c.toReach(10))) to get it under 10%.").font(.ui(.caption)).foregroundStyle(.secondary)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading).card()
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Why it matters").font(.headline)
+                    CardHeader("Why it matters")
                     Text("Utilization is how much of your credit limits you're using. It's one of the biggest parts of a credit score. Under 30% is good and under 10% is best, both overall and on each card. Card companies usually report your statement balance, so paying before the statement date lowers what they report.")
-                        .font(.subheadline).foregroundStyle(.secondary)
+                        .font(.ui(.subheadline)).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading).card()
             }
@@ -126,7 +126,7 @@ struct UtilizationView: View {
             Text(amt <= 0.005 ? "You're there" : "Pay \(money(amt))").monospacedDigit()
                 .foregroundStyle(amt <= 0.005 ? Theme.good : .primary).fontWeight(.semibold)
         }
-        .font(.subheadline)
+        .font(.ui(.subheadline))
     }
 }
 

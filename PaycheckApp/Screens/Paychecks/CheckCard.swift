@@ -19,23 +19,23 @@ struct CheckCard: View {
         let cardId = "check.\(check.key).\(check.n)"
         let cardFolded = Fold.has(folded, cardId)
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top) {
+            ValueRow(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(["First", "Second", "Third"][min(2, check.n - 1)] + " paycheck").font(.headline)
-                    Text("Payday \(DU.dayLabel(check.date))").font(.caption).foregroundStyle(.secondary)
+                    Text(["First", "Second", "Third"][min(2, check.n - 1)] + " paycheck").font(.display(.headline, weight: .semibold))
+                    Text("Payday \(DU.dayLabel(check.date))").font(.ui(.caption)).foregroundStyle(.secondary)
                 }
-                Spacer()
+            } value: {
                 if cardFolded {
                     VStack(alignment: .trailing, spacing: 0) {
-                        Text(t.left < 0 ? "Over budget" : "Left").font(.caption2).foregroundStyle(.secondary)
-                        Text(money(t.left)).font(.subheadline.weight(.semibold)).monospacedDigit()
+                        Text(t.left < 0 ? "Over budget" : "Left").font(.ui(.caption2)).foregroundStyle(.secondary)
+                        Text(money(t.left)).font(.ui(.subheadline).weight(.semibold)).monospacedDigit().rollingNumber(t.left)
                             .foregroundStyle(t.left < 0 ? Theme.over : .primary)
                     }
                 } else {
                     Button { incomeText = String(format: "%.2f", t.income - t.extraIncome); editingIncome = true } label: {
                         VStack(alignment: .trailing, spacing: 0) {
-                            Text(t.extraIncome > 0.004 ? "Coming in" : "Take-home").font(.caption2).foregroundStyle(.secondary)
-                            Text(money(t.income)).font(.subheadline.weight(.semibold)).monospacedDigit()
+                            Text(t.extraIncome > 0.004 ? "Coming in" : "Take-home").font(.ui(.caption2)).foregroundStyle(.secondary)
+                            Text(money(t.income)).font(.ui(.subheadline).weight(.semibold)).monospacedDigit()
                         }
                     }.buttonStyle(.plain)
                 }
@@ -44,36 +44,45 @@ struct CheckCard: View {
             }
 
             if !cardFolded {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(money(t.left)).font(.system(size: 40, weight: .heavy)).monospacedDigit()
-                    .foregroundStyle(t.left < 0 ? Theme.over : .primary)
-                    .minimumScaleFactor(0.6).lineLimit(1)
-                Text(t.left < 0 ? "over budget" : "left to spend").foregroundStyle(.secondary)
+            let left = Text(money(t.left)).heroNumber(t.left).foregroundStyle(t.left < 0 ? Theme.over : .primary)
+            let label = Text(t.left < 0 ? "over budget" : "left to spend").foregroundStyle(.secondary)
+            // Side by side when there's room; at large text sizes the label goes under the number.
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) { left; label }
+                VStack(alignment: .leading, spacing: 0) { left; label }
             }
-            Text("\(money(t.paid)) paid\(t.aside > 0.004 ? ", \(money(t.aside)) set aside" : "") so far")
-                .font(.caption).foregroundStyle(.secondary)
+            // Only once something's been paid; "$0.00 paid so far" is noise.
+            if t.paid + t.aside > 0.004 {
+                Text([t.paid > 0.004 ? "\(money(t.paid)) paid" : nil, t.aside > 0.004 ? "\(money(t.aside)) set aside" : nil]
+                        .compactMap { $0 }.joined(separator: ", ") + " so far")
+                    .font(.ui(.subheadline)).foregroundStyle(.secondary)
+            }
             Tag(text: "Covers bills due \(DU.range(w.from, DU.addDays(w.to, -1)))")
 
             AllocationBar(totals: t)
+            AllocationKey(totals: t)
 
             let extraItems = e.cell(check.key, check.n).addIncome
             if !extraItems.isEmpty {
-                HStack {
+                ValueRow {
                     Circle().fill(Theme.good).frame(width: 8, height: 8)
-                    Text("EXTRA INCOME").font(.caption.weight(.bold)).tracking(0.5)
-                    Spacer()
-                    Text("+" + money(t.extraIncome)).font(.caption.weight(.semibold)).monospacedDigit().foregroundStyle(Theme.good)
+                    Text("EXTRA INCOME").font(.ui(.caption).weight(.bold)).tracking(0.5)
+                } value: {
+                    Text("+" + money(t.extraIncome)).font(.ui(.caption).weight(.semibold)).monospacedDigit().foregroundStyle(Theme.good)
                 }
                 .padding(.top, 6)
                 ForEach(extraItems) { item in
-                    HStack(spacing: 12) {
-                        Image(systemName: "plus.circle.fill").font(.title3).foregroundStyle(Theme.good)
+                    ValueRow(spacing: 12) {
+                        Image(systemName: "plus.circle.fill").font(.ui(.title3)).foregroundStyle(Theme.good)
                         Text(item.name)
-                        Spacer()
-                        Text("+" + money(item.amount)).font(.subheadline.weight(.semibold)).monospacedDigit().foregroundStyle(Theme.good)
+                    } value: {
+                        Text("+" + money(item.amount)).font(.ui(.subheadline).weight(.semibold)).monospacedDigit().foregroundStyle(Theme.good)
                     }
                     .contentShape(Rectangle())
                     .onTapGesture { editingExtra = item }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction { editingExtra = item }
                     .contextMenu {
                         Button { editingExtra = item } label: { Label("Edit", systemImage: "pencil") }
                         Button(role: .destructive) { store.deleteIncomeItem(key: check.key, n: check.n, id: item.id) } label: { Label("Delete", systemImage: "trash") }
@@ -91,15 +100,15 @@ struct CheckCard: View {
                     let active = group.filter { !$0.skip }
                     let done = active.filter { $0.paid || $0.aside }.count
                     Button { withAnimation(.snappy) { folded = Fold.toggled(folded, typeId) } } label: {
-                        HStack {
+                        ValueRow {
                             Circle().fill(info.color).frame(width: 8, height: 8)
-                            Text(info.label.uppercased()).font(.caption.weight(.bold)).tracking(0.5)
+                            Text(info.label.uppercased()).font(.ui(.caption).weight(.bold)).tracking(0.5)
                             if typeFolded && type != "expense" {
-                                Text("\(done) of \(active.count) done").font(.caption).foregroundStyle(.secondary)
+                                Text("\(done) of \(active.count) done").font(.ui(.caption)).foregroundStyle(.secondary)
                             }
-                            Spacer()
-                            Text(money(active.reduce(0) { $0 + $1.amount })).font(.caption.weight(.semibold)).monospacedDigit()
-                            Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(.tertiary)
+                        } value: {
+                            Text(money(active.reduce(0) { $0 + $1.amount })).font(.ui(.caption).weight(.semibold)).monospacedDigit()
+                            Image(systemName: "chevron.down").font(.ui(.caption2).weight(.bold)).foregroundStyle(.tertiary)
                                 .rotationEffect(.degrees(typeFolded ? -90 : 0))
                         }
                         .contentShape(Rectangle())
@@ -116,7 +125,7 @@ struct CheckCard: View {
                 Button { addingOneTime = true } label: { Label("One-time item", systemImage: "plus") }
                 Button { editingExtra = IncomeItem() } label: { Label("Extra income", systemImage: "plus") }
             }
-            .font(.subheadline)
+            .font(.ui(.subheadline))
             }
         }
         .card()
@@ -151,6 +160,29 @@ struct AllocationBar: View {
     }
 }
 
+/// The key under AllocationBar: one dot per color in the bar, plus what's left.
+struct AllocationKey: View {
+    let totals: Totals
+    var body: some View {
+        FlowLayout(spacing: Space.m) {
+            ForEach(TypeInfo.order.filter { (totals.byType[$0] ?? 0) > 0.004 }, id: \.self) { k in
+                item(TypeInfo.of(k).label, TypeInfo.of(k).color)
+            }
+            if totals.left > 0.004 { item("Left", Theme.track) }
+        }
+        .font(.ui(.caption))
+        .foregroundStyle(.secondary)
+        .accessibilityElement(children: .combine)
+    }
+    private func item(_ label: String, _ color: Color) -> some View {
+        HStack(spacing: Space.xs) {
+            Circle().fill(color).frame(width: 8, height: 8)
+                .overlay(Circle().strokeBorder(Color.primary.opacity(0.15)))   // keeps the pale "Left" dot visible
+            Text(label)
+        }
+    }
+}
+
 // MARK: - A row on a paycheck
 
 /// Empty circle = not paid, half filled = set aside, check mark = paid.
@@ -160,18 +192,21 @@ struct StatusDot: View {
         ZStack {
             Circle().stroke(status == "paid" ? Theme.good : status == "aside" ? TypeInfo.of("subscription").color : Color.secondary, lineWidth: 2)
             if status == "paid" {
-                Circle().fill(Theme.good)
+                Circle().fill(Theme.good).transition(.scale.combined(with: .opacity))
                 Image(systemName: "checkmark").font(.system(size: 11, weight: .heavy)).foregroundStyle(.white)
+                    .transition(.scale.combined(with: .opacity))
             } else if status == "aside" {
                 Circle().trim(from: 0.25, to: 0.75).fill(TypeInfo.of("subscription").color).rotationEffect(.degrees(180))
             }
         }
         .frame(width: 22, height: 22)
+        .animation(.snappy, value: status)
     }
 }
 
 /// One line on a paycheck. Tap the dot to change its status, tap the row for details,
-/// or long-press (right-click on Mac) to skip it or move it to another paycheck.
+/// swipe right to mark it paid or left to skip it (iPhone), or long-press (right-click
+/// on Mac) to skip it or move it to another paycheck.
 struct LineRow: View {
     @EnvironmentObject var store: Store
     let line: Line
@@ -179,11 +214,21 @@ struct LineRow: View {
     @State private var editing = false
 
     var body: some View {
-        HStack(spacing: 12) {
+        ValueRow(spacing: 12) {
             Button { store.cycleStatus(line) } label: { StatusDot(status: line.status) }
                 .buttonStyle(.plain)
+                // A tap you can feel: stronger for "paid", lighter for the other steps.
+                .sensoryFeedback(trigger: line.status) { _, new in new == "paid" ? .success : .selection }
                 .disabled(line.skip)
                 .accessibilityLabel("\(line.name), \(line.status == "unpaid" ? "not paid" : line.status). Tap to change.")
+            // The icon is a circle too, so clicking it does what clicking the status circle does,
+            // instead of opening the row's details.
+            Button { store.cycleStatus(line) } label: {
+                IconBadge(icon: ItemIcon.of(line, in: store.state), color: TypeInfo.of(line.type).color)
+            }
+            .buttonStyle(.plain)
+            .disabled(line.skip)
+            .accessibilityHidden(true)   // the status circle already offers this
             VStack(alignment: .leading, spacing: 3) {
                 Text(line.name)
                     .strikethrough(line.paid && !line.skip, color: Theme.good)
@@ -194,23 +239,48 @@ struct LineRow: View {
                         .frame(maxWidth: 160)
                 }
             }
-            Spacer()
+        } value: {
             Text(line.skip ? "Skipped" : money(line.isEnv ? line.env : line.amount))
-                .font(.subheadline.weight(.semibold)).monospacedDigit()
+                .font(.ui(.subheadline).weight(.semibold)).monospacedDigit()
                 .foregroundStyle(line.skip ? .secondary : .primary)
         }
         .opacity(line.skip ? 0.55 : 1)
         .contentShape(Rectangle())
         .onTapGesture { editing = true }
+        // VoiceOver reads the row as one item: name, then amount, status and due date.
+        // Double-tap opens it; changing the status and the swipe choices are in the actions.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(line.name)
+        .accessibilityValue(spokenValue)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { editing = true }
+        .accessibilityAction(named: "Change status") { store.cycleStatus(line) }
+        // Swipe right to mark paid (or not paid), left to skip this month.
+        .swipeRow(
+            leading: line.skip ? nil : SwipeAction(label: line.paid ? "Mark not paid" : "Mark paid",
+                                                   icon: line.paid ? "arrow.uturn.backward" : "checkmark",
+                                                   color: Theme.good) { store.setStatus(line, line.paid ? "unpaid" : "paid") },
+            trailing: line.kind == "rec" ? SwipeAction(label: line.skip ? "Restore" : "Skip this month",
+                                                       icon: line.skip ? "arrow.uturn.backward" : "forward",
+                                                       color: .gray) { store.toggleSkip(line) } : nil)
         .contextMenu { menuItems }
         .sheet(isPresented: $editing) { LineSheet(line: line, check: check).macSheet() }
+    }
+
+    /// What VoiceOver says after the name, like "$80.00, not paid, Due Nov 3, Autopay".
+    var spokenValue: String {
+        var p = [line.skip ? "Skipped" : money(line.isEnv ? line.env : line.amount)]
+        if !line.skip { p.append(line.auto ? "paid by autopay" : line.paid ? "paid" : line.aside ? "set aside" : "not paid") }
+        p += metaParts
+        if line.autopay && !line.paid { p.append("autopay") }
+        return p.joined(separator: ", ")
     }
 
     @ViewBuilder var metaView: some View {
         let parts = metaParts
         if !parts.isEmpty || line.autopay || line.aside || line.auto {
             HStack(spacing: 6) {
-                if !parts.isEmpty { Text(parts.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary) }
+                if !parts.isEmpty { Text(parts.joined(separator: ", ")).font(.ui(.caption)).foregroundStyle(.secondary) }
                 if line.auto { Tag(text: "Paid by autopay") }
                 else if line.aside { Tag(text: "Set aside", color: TypeInfo.of("subscription").color) }
                 else if line.autopay && !line.paid { Tag(text: "Autopay") }
@@ -256,7 +326,7 @@ struct StatusLegend: View {
             HStack(spacing: 5) { StatusDot(status: "aside").scaleEffect(0.75); Text("Set aside") }
             HStack(spacing: 5) { StatusDot(status: "paid").scaleEffect(0.75); Text("Paid") }
         }
-        .font(.caption).foregroundStyle(.secondary)
+        .font(.ui(.caption)).foregroundStyle(.secondary)
         .frame(maxWidth: .infinity)
     }
 }

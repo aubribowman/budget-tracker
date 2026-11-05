@@ -50,7 +50,7 @@ struct WindfallView: View {
                     HStack {
                         Text("$").foregroundStyle(.secondary)
                         TextField("Amount (tax refund, bonus…)", text: $amountText).decimalPad()
-                            .font(.title2.weight(.semibold))
+                            .font(.ui(.title2).weight(.semibold))
                     }
                     Button("Suggest a split") { suggest() }.disabled(amount <= 0)
                 } footer: {
@@ -62,10 +62,10 @@ struct WindfallView: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack(spacing: 6) {
-                                    Image(systemName: icon(d.kind)).foregroundStyle(color(d.kind)).font(.caption)
+                                    Image(systemName: icon(d.kind)).foregroundStyle(color(d.kind)).font(.ui(.caption))
                                     Text(d.name)
                                 }
-                                Text(d.detail).font(.caption).foregroundStyle(.secondary)
+                                Text(d.detail).font(.ui(.caption)).foregroundStyle(.secondary)
                             }
                             Spacer()
                             TextField("0", text: Binding(get: { split[d.id] ?? "" }, set: { split[d.id] = $0 }))
@@ -156,7 +156,7 @@ struct WindfallView: View {
             Spacer()
             VStack(alignment: .trailing, spacing: 0) {
                 Text(value).fontWeight(.semibold).monospacedDigit()
-                if let note { Text(note).font(.caption).foregroundStyle(Theme.good) }
+                if let note { Text(note).font(.ui(.caption)).foregroundStyle(Theme.good) }
             }
         }
     }

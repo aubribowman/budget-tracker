@@ -11,16 +11,20 @@ struct UpcomingCard: View {
             Button {
                 store.settings { $0.upCollapsed.toggle() }
             } label: {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(summary(u)).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: Space.xs) {
+                        CardHeader("To pay now", icon: "checklist")
+                        // Only when folded; open, the rows below say the same thing.
+                        if collapsed { Text(summary(u)).font(.ui(.subheadline)).foregroundStyle(.secondary) }
                         if !u.overdue.isEmpty {
-                            Text("\(u.overdue.count) past due").font(.caption.weight(.semibold)).foregroundStyle(Theme.bad)
+                            Label("\(u.overdue.count) past due", systemImage: "exclamationmark.circle.fill")
+                                .font(.ui(.caption).weight(.semibold)).foregroundStyle(Theme.bad)
                         }
                     }
                     Spacer()
-                    Image(systemName: "chevron.down").rotationEffect(.degrees(collapsed ? -90 : 0)).foregroundStyle(.secondary)
+                    FoldChevron(folded: collapsed)
                 }
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
@@ -28,7 +32,7 @@ struct UpcomingCard: View {
                 if let c = u.cur {
                     SectionLabel("Pay from your \(DU.short(c.date)) paycheck")
                     if u.toPay.isEmpty {
-                        Text("Everything on this paycheck is paid.").font(.subheadline).foregroundStyle(.secondary)
+                        EmptyState(icon: "checkmark.seal", title: "All paid", message: "Everything on this paycheck is paid.", color: Theme.good)
                     } else {
                         ForEach(u.toPay, id: \.uid) { l in QuickRow(line: l, late: false) }
                     }
@@ -42,8 +46,9 @@ struct UpcomingCard: View {
                     ForEach(Array(u.overdue.prefix(6)), id: \.uid) { l in QuickRow(line: l, late: true) }
                 }
                 if let nx = u.next {
-                    Text("Next payday \(DU.dayLabel(nx.date)): \(u.nextCount) items, \(money(u.nextTotal)).")
-                        .font(.caption).foregroundStyle(.secondary)
+                    Text(u.nextCount == 0 ? "Nothing due from your next paycheck, \(DU.dayLabel(nx.date))."
+                         : "Next payday \(DU.dayLabel(nx.date)): \(u.nextCount) \(u.nextCount == 1 ? "item" : "items"), \(money(u.nextTotal)).")
+                        .font(.ui(.caption)).foregroundStyle(.secondary)
                 }
             }
         }
@@ -52,7 +57,10 @@ struct UpcomingCard: View {
 
     private func summary(_ u: Engine.Upcoming) -> String {
         var bits: [String] = []
-        if !u.toPay.isEmpty { bits.append("\(u.toPay.count) to pay") } else if u.cur != nil { bits.append("This paycheck is paid") }
+        if !u.toPay.isEmpty {
+            let total = u.toPay.reduce(0) { $0 + $1.amount }
+            bits.append(u.toPay.count == 1 ? "\(u.toPay[0].name), \(money(total))" : "\(u.toPay.count) bills, \(money(total))")
+        } else if u.cur != nil { bits.append("This paycheck is paid") }
         if !u.pending.isEmpty { bits.append("\(money(u.pending.reduce(0) { $0 + $1.amount })) waiting to come out") }
         return bits.isEmpty ? "Nothing to do right now" : bits.joined(separator: ", ")
     }
@@ -64,7 +72,7 @@ struct SectionLabel: View {
     var color: Color = .secondary
     init(_ t: String, color: Color = .secondary) { text = t; self.color = color }
     var body: some View {
-        Text(text.uppercased()).font(.caption.weight(.bold)).tracking(0.5).foregroundStyle(color).padding(.top, 4)
+        Text(text.uppercased()).font(.ui(.caption).weight(.bold)).tracking(0.5).foregroundStyle(color).padding(.top, 4)
     }
 }
 
@@ -76,22 +84,28 @@ struct QuickRow: View {
     var pending = false
 
     var body: some View {
-        HStack {
+        ValueRow(spacing: Space.m) {
+            IconBadge(icon: ItemIcon.of(line, in: store.state), color: TypeInfo.of(line.type).color)
             VStack(alignment: .leading, spacing: 2) {
-                Text(line.name).font(.subheadline)
+                Text(line.name).font(.ui(.subheadline))
                 if let d = line.dueDate {
                     Text(pending ? (line.aside ? "Set aside" : "Autopay") + ", \(line.autopay ? "comes out" : "due") \(DU.short(d))" : "Due \(DU.dayLabel(d))")
-                        .font(.caption).foregroundStyle(late ? Theme.bad : .secondary)
+                        .font(.ui(.caption)).foregroundStyle(late ? Theme.bad : .secondary)
                 }
             }
-            Spacer()
-            Text(money(line.amount)).font(.subheadline.weight(.bold)).monospacedDigit()
+        } value: {
+            Text(money(line.amount)).font(.ui(.subheadline).weight(.bold)).monospacedDigit()
             Menu {
                 if !line.aside && !pending { Button("Set aside") { store.setStatus(line, "aside") } }
                 Button(pending ? "Cleared" : "Paid") { store.setStatus(line, "paid") }
             } label: {
-                Image(systemName: "checkmark.circle").font(.title3)
+                Image(systemName: "checkmark.circle").font(.ui(.title3))
             }
+            .accessibilityLabel("Mark \(line.name) paid")
+            .sensoryFeedback(trigger: line.status) { _, new in new == "paid" ? .success : .selection }
         }
+        .swipeRow(leading: SwipeAction(label: pending ? "Cleared" : "Mark paid", icon: "checkmark", color: Theme.good) {
+            store.setStatus(line, "paid")
+        })
     }
 }

@@ -9,6 +9,8 @@ struct PaychecksView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
+                    PageTitle("Paychecks")
+                    MonthPill()
                     if store.isEmpty {
                         EmptyStart()
                     } else {
@@ -23,8 +25,7 @@ struct PaychecksView: View {
                 .readableWidth()
             }
             .background(Theme.bg)
-            .toolbar { ToolbarItem(placement: .principal) { MonthBar() } }
-            .inlineTitle()
+            .monthScreen("Paychecks")
         }
     }
 }

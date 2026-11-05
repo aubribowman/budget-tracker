@@ -113,6 +113,8 @@ struct Recurring: Codable, Identifiable, Equatable {
     var extraLine: Bool = false           // the "Extra → debt" line; its amount comes from BudgetState.extra
     var rolledInto: String? = nil         // web app only; kept so it survives a round trip
     var rollDismissed: Bool? = nil        // web app only; kept so it survives a round trip
+    var icon: String? = nil               // apps only: SF Symbol name picked in the editor; nil = guess from the name (ItemIcon).
+                                          // The web app keeps fields it doesn't know, so this survives a round trip.
 
     init() {}
 
@@ -135,6 +137,7 @@ struct Recurring: Codable, Identifiable, Equatable {
         extraLine = c.bool(.extraLine) ?? false
         rolledInto = c.str(.rolledInto)
         rollDismissed = c.bool(.rollDismissed)
+        icon = c.str(.icon)
     }
 
     var dueDay: Int? { Int(due) }

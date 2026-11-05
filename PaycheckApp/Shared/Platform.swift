@@ -18,13 +18,10 @@ extension View {
         #endif
     }
 
-    /// Mac: keep cards a comfortable width and centered in a wide window.
+    /// Keep cards a comfortable width and centered in a wide Mac window or on iPad.
+    /// iPhones are narrower than this, so it changes nothing there.
     func readableWidth() -> some View {
-        #if os(macOS)
         frame(maxWidth: 680).frame(maxWidth: .infinity)
-        #else
-        self
-        #endif
     }
 
     /// Mac: a list on the same gray background as the card screens, kept to a readable width.
@@ -179,3 +176,51 @@ struct ZoomCommands: Commands {
     }
 }
 #endif
+
+/// iPad: a tab's big title, drawn in the page so it lines up with the centered cards
+/// (the system draws its own at the screen's left edge, away from them). Put it first
+/// in the page and use `.pageTitle` instead of `.navigationTitle`. Shows nothing on
+/// iPhone or Mac, which keep their usual titles.
+struct PageTitle: View {
+    let title: String
+    init(_ title: String) { self.title = title }
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var size
+    #endif
+
+    var body: some View {
+        #if os(iOS)
+        if size == .regular {
+            Text(title)
+                .font(.display(.largeTitle, weight: .bold))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, Space.xs)
+                .accessibilityAddTraits(.isHeader)
+        }
+        #endif
+    }
+}
+
+/// The navigation title for a tab with a `PageTitle`. On iPad the bar's copy is hidden,
+/// so the title isn't shown twice; it's still used for the app switcher and VoiceOver.
+private struct PageTitleBar: ViewModifier {
+    let title: String
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var size
+    #endif
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        // The big title can't be hidden, so make it the small one first, then hide that.
+        content.navigationTitle(title)
+            .navigationBarTitleDisplayMode(size == .regular ? .inline : .large)
+            .toolbar(removing: size == .regular ? .title : nil)
+        #else
+        content.navigationTitle(title)
+        #endif
+    }
+}
+
+extension View {
+    func pageTitle(_ title: String) -> some View { modifier(PageTitleBar(title: title)) }
+}

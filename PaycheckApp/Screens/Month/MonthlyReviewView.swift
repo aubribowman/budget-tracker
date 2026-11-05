@@ -71,19 +71,19 @@ struct MonthlyReviewView: View {
                 VStack(spacing: 16) {
                     // 1. The bottom line
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("\(money(r.income)) came in, \(money(r.out)) went out").font(.subheadline).foregroundStyle(.secondary)
+                        Text("\(money(r.income)) came in, \(money(r.out)) went out").font(.ui(.subheadline)).foregroundStyle(.secondary)
                         Text(r.kept >= 0 ? "You kept \(money(r.kept))" : "You went over by \(money(-r.kept))")
-                            .font(.system(size: 30, weight: .heavy)).foregroundStyle(r.kept >= 0 ? Theme.good : Theme.over)
+                            .font(.display(.title, weight: .heavy)).foregroundStyle(r.kept >= 0 ? Theme.good : Theme.over)
                             .minimumScaleFactor(0.6)
                         Text(r.out <= r.planned + 0.5 ? "Spent \(money(r.planned - r.out)) less than planned."
                                                       : "Spent \(money(r.out - r.planned)) more than planned.")
-                            .font(.subheadline).foregroundStyle(.secondary)
+                            .font(.ui(.subheadline)).foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading).card()
 
                     // 2. Plan vs what happened
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Plan vs. what happened").font(.headline)
+                        CardHeader("Plan vs. what happened")
                         ForEach(TypeInfo.order, id: \.self) { k in
                             // For spending, compare what was actually spent, so it matches the category list below.
                             let a = k == "expense" ? r.spent : (r.byType[k] ?? 0), p = r.plannedByType[k] ?? 0
@@ -95,7 +95,7 @@ struct MonthlyReviewView: View {
                                         Text("\(money(a)) of \(money(p))").monospacedDigit()
                                             .foregroundStyle(a > p + 0.5 ? Theme.over : .secondary)
                                     }
-                                    .font(.subheadline)
+                                    .font(.ui(.subheadline))
                                     ProgressBar(value: p > 0 ? a / p : 0, color: a > p + 0.5 ? Theme.over : TypeInfo.of(k).color, height: 6)
                                 }
                             }
@@ -107,27 +107,27 @@ struct MonthlyReviewView: View {
                     if !r.cats.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                Text("Spending").font(.headline)
+                                CardHeader("Spending")
                                 Spacer()
-                                Text("\(r.buyCount) purchases").font(.caption).foregroundStyle(.secondary)
+                                Text("\(r.buyCount) purchases").font(.ui(.caption)).foregroundStyle(.secondary)
                             }
                             ForEach(r.cats) { c in
                                 HStack {
-                                    Text(c.name).font(.subheadline)
+                                    Text(c.name).font(.ui(.subheadline))
                                     Spacer()
                                     Text(c.diff < -0.005 ? "Over \(money(-c.diff))" : "\(money(c.diff)) under")
-                                        .font(.subheadline).monospacedDigit()
+                                        .font(.ui(.subheadline)).monospacedDigit()
                                         .foregroundStyle(c.diff < -0.005 ? Theme.over : Theme.good)
                                 }
                             }
                             if !r.biggest.isEmpty {
                                 Divider()
-                                Text("Biggest purchases").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                                Text("Biggest purchases").font(.ui(.caption).weight(.semibold)).foregroundStyle(.secondary)
                                 ForEach(r.biggest) { b in
                                     HStack {
-                                        Text(b.note.isEmpty ? "Purchase" : b.note).font(.subheadline).lineLimit(1)
+                                        Text(b.note.isEmpty ? "Purchase" : b.note).font(.ui(.subheadline)).lineLimit(1)
                                         Spacer()
-                                        Text(money(b.amt)).font(.subheadline).monospacedDigit().foregroundStyle(.secondary)
+                                        Text(money(b.amt)).font(.ui(.subheadline)).monospacedDigit().foregroundStyle(.secondary)
                                     }
                                 }
                             }
@@ -138,20 +138,20 @@ struct MonthlyReviewView: View {
                     // 4. Bills
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("Bills").font(.headline)
+                            CardHeader("Bills")
                             Spacer()
-                            Text("\(r.billsPaid) of \(r.billsTotal) handled").font(.subheadline).foregroundStyle(.secondary)
+                            Text("\(r.billsPaid) of \(r.billsTotal) handled").font(.ui(.subheadline)).foregroundStyle(.secondary)
                         }
                         if r.unpaid.isEmpty {
                             Label("Everything was paid or set aside.", systemImage: "checkmark.circle.fill")
-                                .font(.subheadline).foregroundStyle(Theme.good)
+                                .font(.ui(.subheadline)).foregroundStyle(Theme.good)
                         } else {
-                            Text("Not marked paid:").font(.caption).foregroundStyle(.secondary)
+                            Text("Not marked paid:").font(.ui(.caption)).foregroundStyle(.secondary)
                             ForEach(r.unpaid, id: \.uid) { l in
                                 HStack {
-                                    Text(l.name).font(.subheadline)
+                                    Text(l.name).font(.ui(.subheadline))
                                     Spacer()
-                                    Text(money(l.amount)).font(.subheadline).monospacedDigit().foregroundStyle(Theme.over)
+                                    Text(money(l.amount)).font(.ui(.subheadline)).monospacedDigit().foregroundStyle(Theme.over)
                                 }
                             }
                         }
@@ -160,7 +160,7 @@ struct MonthlyReviewView: View {
 
                     // 5. Progress
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Progress").font(.headline)
+                        CardHeader("Progress")
                         row("Paid toward debt", money(r.debtPaid))
                         row("Moved to savings", money(r.saved))
                         if r.income > 0 {
@@ -178,7 +178,7 @@ struct MonthlyReviewView: View {
                     // 6. Compared with the month before
                     if hasPrev {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Compared with \(DU.monthLabel(DU.addMonths(month, -1)))").font(.headline)
+                            CardHeader("Compared with \(DU.monthLabel(DU.addMonths(month, -1)))")
                             compare("Spending", r.spent, prev.spent)
                             compare("Total going out", r.out, prev.out)
                             compare("Saved", r.saved, prev.saved, higherIsGood: true)
@@ -192,7 +192,7 @@ struct MonthlyReviewView: View {
                         dismiss()
                     } label: {
                         Label(done ? "Reviewed" : "Mark as reviewed", systemImage: done ? "checkmark.circle.fill" : "checkmark.circle")
-                            .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 6)
+                            .font(.ui(.headline)).frame(maxWidth: .infinity).padding(.vertical, 6)
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -207,7 +207,7 @@ struct MonthlyReviewView: View {
     }
 
     func row(_ label: String, _ value: String) -> some View {
-        HStack { Text(label); Spacer(); Text(value).monospacedDigit().foregroundStyle(.secondary) }.font(.subheadline)
+        HStack { Text(label); Spacer(); Text(value).monospacedDigit().foregroundStyle(.secondary) }.font(.ui(.subheadline))
     }
 
     func compare(_ label: String, _ now: Double, _ before: Double, higherIsGood: Bool = false) -> some View {
@@ -221,6 +221,6 @@ struct MonthlyReviewView: View {
                 .monospacedDigit().foregroundStyle(abs(d) < 0.5 ? .secondary : good ? Theme.good : Theme.over)
                 .frame(minWidth: 70, alignment: .trailing)
         }
-        .font(.subheadline)
+        .font(.ui(.subheadline))
     }
 }

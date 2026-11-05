@@ -16,9 +16,9 @@ struct SyncSection: View {
             if sync.isOn {
                 LabeledContent("Syncing with", value: sync.folderName ?? "Folder")
                 if let p = sync.problem {
-                    Label(p, systemImage: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(Theme.bad)
+                    Label(p, systemImage: "exclamationmark.triangle.fill").font(.ui(.footnote)).foregroundStyle(Theme.bad)
                 } else if let d = sync.lastSynced {
-                    Text("Last checked \(Text(d, style: .relative)) ago").font(.footnote).foregroundStyle(.secondary)
+                    Text("Last checked \(Text(d, style: .relative)) ago").font(.ui(.footnote)).foregroundStyle(.secondary)
                 }
                 Button { Task { await store.syncNow() } } label: { Label("Sync now", systemImage: "arrow.triangle.2.circlepath") }
                 Button { choose() } label: { Label("Change folder", systemImage: "folder") }

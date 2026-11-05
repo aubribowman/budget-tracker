@@ -12,10 +12,11 @@ struct RecurringListView: View {
                 Section {
                     ForEach(items) { r in
                         Button { editing = r } label: {
-                            HStack {
+                            HStack(spacing: Space.m) {
+                                IconBadge(icon: ItemIcon.of(r), color: TypeInfo.of(r.type).color)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(r.name).foregroundStyle(.primary)
-                                    Text(summary(r)).font(.caption).foregroundStyle(.secondary)
+                                    Text(summary(r)).font(.ui(.caption)).foregroundStyle(.secondary)
                                 }
                                 Spacer()
                                 Text(money(r.amount)).monospacedDigit().foregroundStyle(.primary)
@@ -97,6 +98,9 @@ struct RecurringEditSheet: View {
                         Text("Not linked").tag("")
                         ForEach(store.state.goals) { Text($0.name).tag($0.id) }
                     }
+                }
+                Section("Icon") {
+                    IconPicker(icon: $item.icon, name: item.name, type: item.type)
                 }
                 if !isNew {
                     Button("Delete", role: .destructive) { store.deleteRecurring(item.id); dismiss() }

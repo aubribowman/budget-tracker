@@ -6,11 +6,20 @@ struct PaycheckPlanApp: App {
     @StateObject private var store = Store()
     @AppStorage("appearance") private var appearance = "auto"   // auto | light | dark, set in Setup
 
+    init() {
+        AppFonts.register()
+        #if os(iOS)
+        AppFonts.styleNavigationBars()
+        #endif
+    }
+
+
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(store)
                 .tint(Theme.accent)
+                .font(.ui(.body))   // DM Sans for any text that doesn't pick a font
                 .preferredColorScheme(appearance == "light" ? .light : appearance == "dark" ? .dark : nil)
                 .macFormStyle()
         }
@@ -68,7 +77,7 @@ struct RootView: View {
                 .tabItem { Label("Home", systemImage: "house") }
                 .tag(AppTab.home)
             PaychecksView()
-                .tabItem { Label("Paychecks", systemImage: "banknote") }
+                .tabItem { Label("Paychecks", systemImage: "dollarsign.circle") }
                 .tag(AppTab.paychecks)
             PurchasesView()
                 .tabItem { Label("Purchases", systemImage: "cart") }
