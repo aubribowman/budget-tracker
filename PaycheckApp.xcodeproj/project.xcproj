@@ -43,8 +43,8 @@
       ],
       "build-settings": {
         "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
-        "CODE_SIGN_ENTITLEMENTS": "PaycheckApp.entitlements",
-        "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": "PaycheckApp-macOS.entitlements",
+        "CODE_SIGN_ENTITLEMENTS": "Config/PaycheckApp.entitlements",
+        "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": "Config/PaycheckApp-macOS.entitlements",
         "CODE_SIGN_STYLE": "Automatic",
         "CURRENT_PROJECT_VERSION": "1",
         "ENABLE_APP_SANDBOX": "YES",
@@ -89,11 +89,11 @@
         "resources",
       ],
       "build-settings": {
-        "CODE_SIGN_ENTITLEMENTS": "PaycheckWidget.entitlements",
+        "CODE_SIGN_ENTITLEMENTS": "Config/PaycheckWidget.entitlements",
         "CODE_SIGN_STYLE": "Automatic",
         "CURRENT_PROJECT_VERSION": "1",
         "GENERATE_INFOPLIST_FILE": "YES",
-        "INFOPLIST_FILE": "PaycheckWidget-Info.plist",
+        "INFOPLIST_FILE": "Config/PaycheckWidget-Info.plist",
         "INFOPLIST_KEY_CFBundleDisplayName": "Paycheck Plan",
         "LD_RUNPATH_SEARCH_PATHS": [
           "@executable_path/Frameworks",

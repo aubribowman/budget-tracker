@@ -67,7 +67,7 @@ The simulator starts with an empty budget. Import a backup (see below) to see yo
 2. In Xcode, click the blue **PaycheckApp** project at the top of the sidebar. For both the **PaycheckApp** and **PaycheckWidget** targets, open **Signing & Capabilities**, check **Automatically manage signing**, and pick your **Team**.
 3. Choose your iPhone from the device menu and press **⌘R**. The first time, on the phone go to **Settings → General → VPN & Device Management** and trust your developer certificate.
 
-The app's ID is `com.aubribowman.PaycheckApp`, the widget's is `com.aubribowman.PaycheckApp.PaycheckWidget`, and they share data through the App Group `group.com.aubribowman.PaycheckApp`. If you sign with a different Apple account and Xcode says an ID is taken, change all three to your own (for example, swap `aubribowman` for your name). Make the same change in `PaycheckApp.entitlements`, `PaycheckWidget.entitlements`, `PaycheckApp/Support/WidgetSync.swift` and `PaycheckWidget/PaycheckWidget.swift`.
+The app's ID is `com.aubribowman.PaycheckApp`, the widget's is `com.aubribowman.PaycheckApp.PaycheckWidget`, and they share data through the App Group `group.com.aubribowman.PaycheckApp`. If you sign with a different Apple account and Xcode says an ID is taken, change all three to your own (for example, swap `aubribowman` for your name). Make the same change in `Config/PaycheckApp.entitlements`, `Config/PaycheckApp-macOS.entitlements`, `Config/PaycheckWidget.entitlements`, `PaycheckApp/Services/WidgetSync.swift` and `PaycheckWidget/PaycheckWidget.swift`.
 
 With a free Apple ID, the app stops opening after 7 days. Run it from Xcode again to reset that. A paid Apple Developer account ($99/year) removes the limit and adds TestFlight.
 
@@ -120,19 +120,29 @@ Rules and import history are kept separately from the web app's, so don't import
 ## Project layout
 
 ```
-PaycheckApp/              The app
-  App/                    App entry, tabs, Face ID lock, Store (saving and every change)
-  Engine/                 Budget math: paychecks, lines, totals, debt payoff, goals, student loans
-  Model/                  The data, in the same format as the web app's backup file
-  Support/                Dates and money, colors, reminders, bank CSV reader, widget data,
-                          and Platform.swift (iPhone-only touches with their Mac versions)
-  Views/                  One file per screen
-  Assets.xcassets         App icon (light and dark) and colors
-PaycheckWidget/           Home and lock screen widgets
-docs/screenshots/         Screenshots used in this README
-PaycheckWidget-Info.plist Widget settings
-*.entitlements            App Group that lets the app and widget share data, and Mac file access for sync
+PaycheckApp/                  The app (iPhone and Mac)
+  App/                        App entry and tabs, and Store: holds the budget, saves it, applies every change
+  Model/                      The data, in the same format as the web app's backup file
+  Engine/                     Budget math: paychecks, totals, debt payoff, student loans, goals
+  Services/                   Sync folder, reminders, widget data, Face ID lock, bank CSV reader
+  Shared/                     Colors, cards and other UI pieces used on several screens, and
+                              Platform.swift (iPhone-only touches with their Mac versions)
+  Utilities/                  Date and money helpers
+  Screens/                    One folder per tab, one file per screen or sheet
+    Home/                     Home and the windfall planner
+    Paychecks/                Paychecks, the paycheck card, line details, one-time and extra income
+    Purchases/                Purchases and bank import
+    Month/                    Month and the monthly review
+    Payoff/                   Debts, the payoff chart, student loans, credit utilization
+    Goals/                    Savings goals
+    Settings/                 Setup, pay schedule, recurring items, sync
+  Assets.xcassets             App icon (light and dark) and colors
+PaycheckWidget/               Home and lock screen widgets
+Config/                       Entitlements (App Group, Mac file access for sync) and the widget's Info.plist
+docs/screenshots/             Screenshots used in this README
 ```
+
+Xcode includes every file in `PaycheckApp/` and `PaycheckWidget/` automatically, so you can add or move Swift files there without changing the project.
 
 ## How the code works
 
@@ -148,9 +158,9 @@ A paycheck is built like this: find the paydays in the month (`checksIn`), give 
 ### Things to keep in mind
 
 - **Stay compatible with the web app.** The backup file is shared with the web app, so keep field names the same, decode new fields with a default, and don't remove fields the web app uses. The payoff math (`simulateAll` in [Engine+Loans.swift](PaycheckApp/Engine/Engine+Loans.swift)) is a port of the web app's, so both should show the same dates.
-- **Dates are text.** Months are `"yyyy-MM"` and days are `"yyyy-MM-dd"`, compared as plain strings. Use the helpers in [DateUtil.swift](PaycheckApp/Support/DateUtil.swift).
+- **Dates are text.** Months are `"yyyy-MM"` and days are `"yyyy-MM-dd"`, compared as plain strings. Use the helpers in [DateUtil.swift](PaycheckApp/Utilities/DateUtil.swift).
 - **Round money with `r2`** before saving it.
-- **iPhone vs. Mac.** Screens are shared. Put iPhone-only modifiers behind a helper in [Platform.swift](PaycheckApp/Support/Platform.swift) with a Mac version, instead of adding `#if os(...)` in each screen.
+- **iPhone vs. Mac.** Screens are shared. Put iPhone-only modifiers behind a helper in [Platform.swift](PaycheckApp/Shared/Platform.swift) with a Mac version, instead of adding `#if os(...)` in each screen.
 - **Widget data.** If you change what the widget shows, update both `WidgetSync.Summary` in the app and `WidgetSummary` in the widget.
 
 ## Not yet
