@@ -78,7 +78,17 @@ Needs a Mac with an Apple chip.
 1. In Xcode, pick **My Mac** from the device menu at the top of the window.
 2. Press **⌘R**. The first time, Xcode sets up signing for the Mac the same way it does for your iPhone.
 
-The Mac app has everything except widgets, which are iPhone only for now. Face ID becomes Touch ID on Macs that have it. To keep the app, drag it from Xcode's **Products** folder (Product → Show Build Folder in Finder) into your Applications folder.
+The Mac app has everything except widgets, which are iPhone only for now. Face ID becomes Touch ID on Macs that have it.
+
+### Keep it in your Applications folder
+
+Running from Xcode doesn't update the copy in Applications or the Dock. To build the app and put the latest version there, run this in Terminal from the project folder:
+
+```bash
+./scripts/install-mac.sh
+```
+
+It quits the app if it's open, moves the old copy to the Trash, installs the new one, and opens it. Your budget isn't touched. Run it again whenever you change the code.
 
 ## Move your data over
 
@@ -140,6 +150,7 @@ PaycheckApp/                  The app (iPhone and Mac)
 PaycheckWidget/               Home and lock screen widgets
 Config/                       Entitlements (App Group, Mac file access for sync) and the widget's Info.plist
 docs/screenshots/             Screenshots used in this README
+scripts/install-mac.sh        Builds the Mac app and installs it in Applications
 ```
 
 Xcode includes every file in `PaycheckApp/` and `PaycheckWidget/` automatically, so you can add or move Swift files there without changing the project.
