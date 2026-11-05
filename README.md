@@ -134,6 +134,25 @@ PaycheckWidget-Info.plist Widget settings
 *.entitlements            App Group that lets the app and widget share data, and Mac file access for sync
 ```
 
+## How the code works
+
+Data moves one way:
+
+1. **`BudgetState`** ([Models.swift](PaycheckApp/Model/Models.swift)) is the whole budget, exactly as it's saved, synced and backed up.
+2. **`Store`** ([Store.swift](PaycheckApp/App/Store.swift)) holds it and is the only thing that changes it. Every change goes through `store.update { ... }`, which saves and syncs.
+3. **`Engine`** ([Engine.swift](PaycheckApp/Engine/Engine.swift)) works out the numbers from a snapshot: paydays, what's on each paycheck, totals, balances and payoff dates. It never changes the budget. The Store makes a new one after every change.
+4. **Views** read `store.state` for data and `store.engine` for numbers, and call Store functions to make changes.
+
+A paycheck is built like this: find the paydays in the month (`checksIn`), give each one a date range (`windowFor`), put each recurring item on the paycheck whose range holds its due date (`naturalRec`), add moved and one-time items (`lines`), then add it all up (`totals`). Changes for a single paycheck, like marking a bill paid, are stored as an `Override` on that paycheck, not on the recurring item.
+
+### Things to keep in mind
+
+- **Stay compatible with the web app.** The backup file is shared with the web app, so keep field names the same, decode new fields with a default, and don't remove fields the web app uses. The payoff math (`simulateAll` in [Engine+Loans.swift](PaycheckApp/Engine/Engine+Loans.swift)) is a port of the web app's, so both should show the same dates.
+- **Dates are text.** Months are `"yyyy-MM"` and days are `"yyyy-MM-dd"`, compared as plain strings. Use the helpers in [DateUtil.swift](PaycheckApp/Support/DateUtil.swift).
+- **Round money with `r2`** before saving it.
+- **iPhone vs. Mac.** Screens are shared. Put iPhone-only modifiers behind a helper in [Platform.swift](PaycheckApp/Support/Platform.swift) with a Mac version, instead of adding `#if os(...)` in each screen.
+- **Widget data.** If you change what the widget shows, update both `WidgetSync.Summary` in the app and `WidgetSummary` in the widget.
+
 ## Not yet
 
 - **Widgets on Mac.** Widgets are built for iPhone only.

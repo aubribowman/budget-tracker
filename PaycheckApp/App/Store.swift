@@ -3,12 +3,20 @@ import SwiftUI
 import Combine
 
 /// Holds the budget, saves it to the phone, and applies every change.
+///
+/// The one rule: screens never change `state` directly. Every change goes through
+/// `update` (or a helper below that calls it), which stamps `savedAt`, makes a new
+/// `Engine` so every number is worked out fresh, and saves a moment later.
+/// Screens read data from `state` and calculated numbers from `engine`.
+///
+/// The Store is created once in PaycheckApp.swift and passed to every screen as an
+/// `@EnvironmentObject`. Bank import helpers are in Store+Import.swift.
 @MainActor
 final class Store: ObservableObject {
     @Published private(set) var state: BudgetState
     @Published private(set) var engine: Engine
-    @Published var month: String = DU.ym(Date())
-    @Published var lastError: String?
+    @Published var month: String = DU.ym(Date())   // month shown on Paychecks, Purchases and Month
+    @Published var lastError: String?               // shown as an alert by RootView
     /// Optional shared folder (like iCloud Drive) that keeps your devices in step.
     let sync = SyncFolder()
 
@@ -17,12 +25,14 @@ final class Store: ObservableObject {
         let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]; return f
     }()
 
+    /// This device's copy: Application Support/budget.json.
     static var fileURL: URL {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("budget.json")
     }
 
+    /// Loads this device's copy, or starts empty if there isn't one or it can't be read.
     init() {
         var loaded = BudgetState()
         if let data = try? Data(contentsOf: Store.fileURL), let s = try? JSONDecoder().decode(BudgetState.self, from: data) {
@@ -32,10 +42,12 @@ final class Store: ObservableObject {
         engine = Engine(loaded)
     }
 
+    /// Nothing set up yet, so screens can show a getting-started message.
     var isEmpty: Bool { state.recurring.isEmpty && state.debts.isEmpty }
 
     // MARK: Saving
 
+    /// Applies a change to the budget. Everything that edits the budget comes through here.
     func update(_ change: (inout BudgetState) -> Void) {
         var s = state
         change(&s)
@@ -49,7 +61,9 @@ final class Store: ObservableObject {
     /// so just opening the app doesn't make this device's copy look newest to sync.
     func refresh() { engine = Engine(state) }
 
-    /// Saves to this device, then (for your own changes) to the sync folder.
+    /// Saves to this device, then (for your own changes) to the sync folder. Waits 0.4
+    /// seconds first, so typing or quick taps turn into one save. Also refreshes the
+    /// widget and reminders.
     private func scheduleSave(push: Bool) {
         saveTask?.cancel()
         let snapshot = state
@@ -101,12 +115,15 @@ final class Store: ObservableObject {
 
     // MARK: Backup
 
+    /// The whole budget as a backup file, in the web app's format.
     func exportData() -> Data {
         let enc = JSONEncoder()
         enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         return (try? enc.encode(state)) ?? Data()
     }
 
+    /// Replaces the budget with a backup file. Returns false (and sets `lastError`) if
+    /// the file isn't a Paycheck Plan backup.
     @discardableResult
     func importBackup(_ data: Data) -> Bool {
         guard BudgetState.looksValid(data), let s = try? JSONDecoder().decode(BudgetState.self, from: data) else {
@@ -120,6 +137,7 @@ final class Store: ObservableObject {
 
     // MARK: Paycheck cells
 
+    /// Changes one paycheck's saved data, creating it if needed.
     func editCell(_ key: String, _ n: Int, _ f: (inout Cell) -> Void) {
         update { s in
             var m = s.months[key] ?? [:]
@@ -130,6 +148,8 @@ final class Store: ObservableObject {
         }
     }
 
+    /// Changes a recurring line's override on the paycheck it belongs to (its home paycheck,
+    /// even if it's shown on another one after a move).
     func editOverride(_ line: Line, _ f: @escaping (inout Override) -> Void) {
         editCell(line.homeKey, line.home) { c in
             var o = c.ov[line.id] ?? Override()
@@ -144,6 +164,9 @@ final class Store: ObservableObject {
         setStatus(line, next)
     }
 
+    /// Sets a line to "unpaid", "aside" or "paid". When the extra debt line is marked
+    /// paid, it saves which debt and amount it went to, so later changes to the plan
+    /// don't rewrite what you already paid.
     func setStatus(_ line: Line, _ status: String) {
         if line.kind == "ex" {
             editCell(line.homeKey, line.home) { c in
@@ -168,6 +191,8 @@ final class Store: ObservableObject {
         }
     }
 
+    /// Changes the amount on this paycheck only. Setting it back to the usual amount
+    /// clears the override.
     func setAmount(_ line: Line, _ v: Double) {
         if line.kind == "ex" {
             editCell(line.homeKey, line.home) { c in if let i = c.extras.firstIndex(where: { $0.id == line.id }) { c.extras[i].amount = v } }
@@ -177,6 +202,7 @@ final class Store: ObservableObject {
         editOverride(line) { o in o.amount = abs(v - base) < 0.005 ? nil : v }
     }
 
+    /// Skips a recurring line on this paycheck, or brings it back.
     func toggleSkip(_ line: Line) {
         editOverride(line) { o in
             let s = !(o.skip ?? false)
@@ -185,11 +211,13 @@ final class Store: ObservableObject {
         }
     }
 
+    /// Shows a recurring line on another paycheck. Moving it back home clears the move.
     func move(_ line: Line, to c: Check) {
         let home = "\(line.homeKey)|\(line.home)", target = "\(c.key)|\(c.n)"
         editOverride(line) { o in o.moveTo = target == home ? nil : target }
     }
 
+    /// Points this paycheck's extra payment at a specific debt, and keeps it there.
     func setExtraDebt(_ line: Line, _ debtId: String) {
         editOverride(line) { o in o.debtId = debtId; o.debtLocked = true }
     }
@@ -205,6 +233,7 @@ final class Store: ObservableObject {
         }
     }
 
+    /// Sets this paycheck's take-home. nil goes back to the default pay.
     func setIncome(key: String, n: Int, _ v: Double?) {
         editCell(key, n) { c in c.income = v }
     }
@@ -222,6 +251,7 @@ final class Store: ObservableObject {
 
     // MARK: Purchases
 
+    /// Logs a purchase on the paycheck its date falls in.
     /// Returns an error message if the date is before the budget starts.
     func addPurchase(date: Date, note: String, amount: Double, recId: String) -> String? {
         guard let pc = engine.periodCheck(DU.startOfDay(date)) else {
@@ -248,6 +278,9 @@ final class Store: ObservableObject {
     }
 
     // MARK: Setup
+
+    // The save functions add the item if its id is new, or replace it if not.
+    // Deleting a debt or goal also unlinks any recurring items that pointed at it.
 
     func saveRecurring(_ r: Recurring) {
         update { s in
@@ -294,6 +327,7 @@ final class Store: ObservableObject {
         syncLoanPlanLine()
     }
 
+    /// Sets the monthly student loan plan and when it starts.
     func setLoanPlan(payment: Double, start: String) {
         update { s in s.loanPlan.payment = max(0, r2(payment)); s.loanPlan.start = start }
         syncLoanPlanLine()
@@ -346,6 +380,7 @@ final class Store: ObservableObject {
         }
     }
 
+    /// Adds or removes the "Extra → debt" line on paychecks.
     func setExtraLine(on: Bool) {
         update { s in
             if on {
@@ -361,6 +396,7 @@ final class Store: ObservableObject {
         }
     }
 
+    /// Which paycheck the extra payment goes on: "1", "2" or "each".
     func setExtraWhen(_ w: String) {
         update { s in
             s.extraWhen = w
@@ -368,5 +404,6 @@ final class Store: ObservableObject {
         }
     }
 
+    /// Changes settings, e.g. `store.settings { $0.rollover = true }`.
     func settings(_ f: (inout BudgetSettings) -> Void) { update { f(&$0.settings) } }
 }

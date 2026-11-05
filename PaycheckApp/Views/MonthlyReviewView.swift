@@ -43,6 +43,7 @@ struct MonthReview {
     }
 }
 
+/// Remembers which months you've reviewed (per device, in @AppStorage) for the Home reminder.
 enum Review {
     static let key = "reviewedMonths"
     /// The month to nudge about on Home: last month, early in this month, if not reviewed yet.
@@ -53,6 +54,7 @@ enum Review {
     }
 }
 
+/// Plan vs. actual for one month, compared with the month before.
 struct MonthlyReviewView: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss

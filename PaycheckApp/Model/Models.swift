@@ -1,5 +1,17 @@
 import Foundation
 
+// The budget data. These types match the web app's backup file (Paycheck Plan.json)
+// field for field, so the same file can move between the web app, iPhone and Mac.
+//
+// Rules for changing them:
+// - Every type decodes by hand with defaults, so an older or newer file still loads.
+//   A missing or oddly typed field falls back to its default instead of failing.
+// - Keep field names the same as the web app's. Renaming one breaks backups and sync.
+// - Months are "yyyy-MM" text and dates are "yyyy-MM-dd" text (see DateUtil.swift),
+//   which also sort correctly as plain strings.
+// - IDs are a one-letter prefix plus 7 random characters (r = recurring, x = one-time,
+//   b = purchase, i = extra income, d = debt, g = goal, l = loan).
+
 // MARK: - Flexible decoding
 // The web app stores some values as either numbers or strings ("15" vs 15, "last").
 // These helpers read whichever shape is there so a backup from the web app always loads.
@@ -33,24 +45,25 @@ extension KeyedDecodingContainer {
 
 // MARK: - BudgetSettings
 
+/// How you're paid and how the plan behaves. Edited in Setup.
 struct BudgetSettings: Codable, Equatable {
-    var payDay1: Int = 15
-    var payDay2: String = "last"          // "last" or a day number as text
-    var weekend: String = "friday"        // friday | monday | none
+    var payDay1: Int = 15                 // semi-monthly: day of the first paycheck
+    var payDay2: String = "last"          // semi-monthly: "last" or a day number as text
+    var weekend: String = "friday"        // payday on a weekend moves to: friday | monday | none
     var pay: Double = 0                   // semi-monthly take-home per check
-    var rollover: Bool = false
-    var startMonth: String = DU.ym(Date())
-    var theme: String = "auto"
-    var mode: String = "semi"             // semi | biweekly | switch
-    var bwAnchor: String = ""             // any biweekly payday, yyyy-MM-dd
-    var bwPay: Double = 0
-    var switchMonth: String = ""
-    var bwEnd: String = ""
-    var payAhead: Int = 0
-    var payAheadFrom: String = ""
-    var payAheadCatchUp: Bool = false
-    var upCollapsed: Bool = false
-    var rollLoans: Bool = true
+    var rollover: Bool = false            // carry what's left on one paycheck into the next
+    var startMonth: String = DU.ym(Date()) // first month of the plan; earlier months are ignored
+    var theme: String = "auto"            // web app only; the native app uses @AppStorage("appearance")
+    var mode: String = "semi"             // semi | biweekly | switch (biweekly until switchMonth, then semi)
+    var bwAnchor: String = ""             // any biweekly payday, yyyy-MM-dd; the rest are 14 days apart
+    var bwPay: Double = 0                 // biweekly take-home per check
+    var switchMonth: String = ""          // "switch" mode: first semi-monthly month
+    var bwEnd: String = ""                // "switch" mode: last biweekly payday, yyyy-MM-dd
+    var payAhead: Int = 0                 // each paycheck covers bills this many paychecks ahead
+    var payAheadFrom: String = ""         // pay-ahead starts with paychecks on or after this date
+    var payAheadCatchUp: Bool = false     // the first pay-ahead paycheck also covers the bills it skipped over
+    var upCollapsed: Bool = false         // the "Coming up" card on Paychecks is folded
+    var rollLoans: Bool = true            // paid-off card payments roll into student loans
     var firstName: String = ""            // for the Home greeting
 
     init() {}
@@ -80,24 +93,26 @@ struct BudgetSettings: Codable, Equatable {
 
 // MARK: - Recurring items (bills, subscriptions, spending categories, debt payments, savings)
 
+/// Something that repeats every month (or every few months). The Engine turns each one
+/// into a `Line` on the right paycheck. Changes for a single paycheck go in an `Override`.
 struct Recurring: Codable, Identifiable, Equatable {
     var id: String = "r" + UUID().uuidString.prefix(7).lowercased()
     var name: String = "New bill"
-    var type: String = "bill"             // bill | subscription | expense | debt | savings
-    var amount: Double = 0
-    var when: String = "auto"             // auto | 1 | 2 | each
+    var type: String = "bill"             // bill | subscription | expense (spending category) | debt | savings
+    var amount: Double = 0                // planned amount each time it comes up
+    var when: String = "auto"             // auto (paycheck whose window holds the due date) | 1 | 2 | 3 | each (every paycheck)
     var due: String = ""                  // day of month as text, "" if none
-    var every: Int = 1
-    var start: String = ""
-    var end: String = ""
-    var debtId: String = ""
-    var goalId: String = ""
-    var autopay: Bool = false
-    var bucket: String? = nil
-    var loanPlan: Bool = false
-    var extraLine: Bool = false
-    var rolledInto: String? = nil
-    var rollDismissed: Bool? = nil
+    var every: Int = 1                    // every N months, counted from `start` (or the plan's start month)
+    var start: String = ""                // first month, yyyy-MM, "" for no limit
+    var end: String = ""                  // last month, yyyy-MM, "" for no limit
+    var debtId: String = ""               // debt payments: which Debt marking it paid pays down
+    var goalId: String = ""               // savings: which Goal marking it paid adds to
+    var autopay: Bool = false             // counts as paid once its due date has passed
+    var bucket: String? = nil             // web app only; kept so it survives a round trip
+    var loanPlan: Bool = false            // the student loan payment line (left out of card payoff math)
+    var extraLine: Bool = false           // the "Extra → debt" line; its amount comes from BudgetState.extra
+    var rolledInto: String? = nil         // web app only; kept so it survives a round trip
+    var rollDismissed: Bool? = nil        // web app only; kept so it survives a round trip
 
     init() {}
 
@@ -127,15 +142,18 @@ struct Recurring: Codable, Identifiable, Equatable {
 
 // MARK: - Per-paycheck data
 
+/// A change to one recurring item on one paycheck, stored in `Cell.ov` under the item's id.
+/// `nil` means "not set", which is different from `false` (for example, autopay only
+/// marks a line paid when `paid` is nil).
 struct Override: Codable, Equatable {
-    var amount: Double? = nil
+    var amount: Double? = nil             // amount for this paycheck only
     var paid: Bool? = nil
-    var aside: Bool? = nil
-    var skip: Bool? = nil
-    var moveTo: String? = nil
-    var debtId: String? = nil
-    var debtLocked: Bool? = nil
-    var tx: String? = nil
+    var aside: Bool? = nil                // money set aside but not paid yet
+    var skip: Bool? = nil                 // skip it this time; not counted in totals
+    var moveTo: String? = nil             // show on another paycheck: "2" (same month) or "yyyy-MM|2"
+    var debtId: String? = nil             // extra line: which debt this paycheck's extra went to
+    var debtLocked: Bool? = nil           // extra line: keep debtId even if the focus debt changes
+    var tx: String? = nil                 // bank transaction id that marked it paid (see Store+Import)
 
     init() {}
 
@@ -152,10 +170,11 @@ struct Override: Codable, Equatable {
     }
 }
 
+/// A one-time item added to a single paycheck.
 struct OneTime: Codable, Identifiable, Equatable {
     var id: String = "x" + UUID().uuidString.prefix(7).lowercased()
     var name: String = ""
-    var type: String = "expense"
+    var type: String = "expense"          // same types as Recurring
     var amount: Double = 0
     var paid: Bool = false
     var aside: Bool? = nil
@@ -179,12 +198,13 @@ struct OneTime: Codable, Identifiable, Equatable {
     }
 }
 
+/// A purchase logged against a spending category (a Recurring with type "expense").
 struct Buy: Codable, Identifiable, Equatable {
     var id: String = "b" + UUID().uuidString.prefix(7).lowercased()
     var amt: Double = 0
     var note: String = ""
-    var date: String = ""
-    var tx: String? = nil
+    var date: String = ""                 // yyyy-MM-dd
+    var tx: String? = nil                 // bank transaction id if it came from an import
 
     init() {}
 
@@ -199,7 +219,8 @@ struct Buy: Codable, Identifiable, Equatable {
 }
 
 /// Money coming in on top of a paycheck, like a side job or a reimbursement.
-/// The web app keeps it in the file but doesn't count it yet.
+/// Added to that paycheck's income in `Engine.totals`. The web app doesn't know about
+/// this field yet; it keeps it in the file but doesn't count it.
 struct IncomeItem: Codable, Identifiable, Equatable {
     var id: String = "i" + UUID().uuidString.prefix(7).lowercased()
     var name: String = ""
@@ -215,17 +236,20 @@ struct IncomeItem: Codable, Identifiable, Equatable {
     }
 }
 
+/// Everything specific to one paycheck. Stored at `BudgetState.months["yyyy-MM"]["1"]`
+/// (the paycheck number as text). Most paychecks have no Cell until you change something.
 struct Cell: Codable, Equatable {
-    var income: Double? = nil
-    var ov: [String: Override] = [:]
+    var income: Double? = nil             // take-home for this check; nil uses the default pay
+    var ov: [String: Override] = [:]      // keyed by Recurring id
     var extras: [OneTime] = []
-    var buys: [String: [Buy]] = [:]
+    var buys: [String: [Buy]] = [:]       // purchases, keyed by spending category (Recurring id)
     var addIncome: [IncomeItem] = []
 
     enum CodingKeys: String, CodingKey { case income, ov, extras, buys, addIncome }
 
     init() {}
 
+    // Written by hand so `addIncome` is left out when empty, keeping files tidy for the web app.
     func encode(to en: Encoder) throws {
         var c = en.container(keyedBy: CodingKeys.self)
         try c.encodeIfPresent(income, forKey: .income)
@@ -247,15 +271,17 @@ struct Cell: Codable, Equatable {
 
 // MARK: - Debts, goals, student loans
 
+/// A credit card or personal loan. The balance is a snapshot: the current balance is
+/// `balance` minus debt payments marked paid after `asOf` (see `Engine.curBal`).
 struct Debt: Codable, Identifiable, Equatable {
     var id: String = "d" + UUID().uuidString.prefix(7).lowercased()
     var name: String = "New debt"
-    var balance: Double = 0
-    var original: Double = 0
-    var apr: Double = 0
-    var min: Double = 0
-    var asOf: String = DU.iso(Date())
-    var limit: Double? = nil
+    var balance: Double = 0               // balance on the `asOf` date
+    var original: Double = 0              // starting balance, for the progress bar
+    var apr: Double = 0                   // percent, e.g. 24.99
+    var min: Double = 0                   // monthly minimum payment
+    var asOf: String = DU.iso(Date())     // yyyy-MM-dd
+    var limit: Double? = nil              // credit limit, for utilization
 
     init() {}
 
@@ -272,14 +298,16 @@ struct Debt: Codable, Identifiable, Equatable {
     }
 }
 
+/// A savings goal. Like Debt, `balance` is a snapshot on `asOf`; savings lines linked to
+/// the goal and marked paid after that date are added on top (see Engine+Goals.swift).
 struct Goal: Codable, Identifiable, Equatable {
     var id: String = "g" + UUID().uuidString.prefix(7).lowercased()
     var name: String = "New goal"
-    var kind: String = "savings"
+    var kind: String = "savings"          // web app only; kept so it survives a round trip
     var target: Double = 0
     var balance: Double = 0
     var asOf: String = DU.iso(Date())
-    var due: String = ""
+    var due: String = ""                  // optional target date, yyyy-MM-dd
 
     init() {}
 
@@ -295,16 +323,18 @@ struct Goal: Codable, Identifiable, Equatable {
     }
 }
 
+/// A student loan. Kept apart from `Debt` because interest builds up before repayment
+/// starts (unless it's subsidized). Math is in Engine+Loans.swift.
 struct Loan: Codable, Identifiable, Equatable {
     var id: String = "l" + UUID().uuidString.prefix(7).lowercased()
     var name: String = "Student loan"
-    var kind: String = "unsubsidized"
-    var balance: Double = 0
-    var apr: Double = 0
-    var asOf: String = DU.iso(Date())
-    var repayStart: String = ""
-    var term: Int = 10
-    var payment: Double = 0
+    var kind: String = "unsubsidized"     // one of Engine.loanKinds, e.g. subsidized or unsubsidized
+    var balance: Double = 0               // balance on the `asOf` date
+    var apr: Double = 0                   // percent
+    var asOf: String = DU.iso(Date())     // yyyy-MM-dd
+    var repayStart: String = ""           // yyyy-MM-dd
+    var term: Int = 10                    // years, for the standard payment
+    var payment: Double = 0               // your own monthly payment; 0 uses the standard one
 
     init() {}
 
@@ -322,9 +352,10 @@ struct Loan: Codable, Identifiable, Equatable {
     }
 }
 
+/// One monthly amount for all student loans together, set on the Student loans screen.
 struct LoanPlan: Codable, Equatable {
-    var payment: Double = 0
-    var start: String = ""
+    var payment: Double = 0               // 0 means no plan; each loan uses its own payment
+    var start: String = ""                // yyyy-MM
 
     init() {}
 
@@ -337,23 +368,25 @@ struct LoanPlan: Codable, Equatable {
 
 // MARK: - Whole budget
 
+/// The whole budget: exactly what's saved to disk, synced and backed up.
+/// The app holds one of these in `Store.state`; screens read numbers from `Store.engine`.
 struct BudgetState: Codable, Equatable {
     var version: Int = 1
     var settings = BudgetSettings()
     var recurring: [Recurring] = []
-    var months: [String: [String: Cell]] = [:]
+    var months: [String: [String: Cell]] = [:]   // "yyyy-MM" → paycheck number ("1", "2", "3") → Cell
     var debts: [Debt] = []
     var goals: [Goal] = []
     var loans: [Loan] = []
     var loanPlan = LoanPlan()
-    var strategy: String = "avalanche"     // avalanche | snowball | target
-    var extra: Double = 0
-    var targetDebt: String? = nil
-    var extraWhen: String? = nil
-    var importRules: [String: String] = [:]
-    var pocketMap: [String: String] = [:]
-    var imported: [String: Double] = [:]
-    var savedAt: String? = nil
+    var strategy: String = "avalanche"     // avalanche (highest rate first) | snowball (smallest balance first) | target (targetDebt first)
+    var extra: Double = 0                  // extra paid toward debt each month
+    var targetDebt: String? = nil          // Debt id for the "target" strategy
+    var extraWhen: String? = nil           // which paycheck the extra goes on: "1", "2" or "each"
+    var importRules: [String: String] = [:] // bank import: store name → where it goes (see ImportTarget.ruleValue)
+    var pocketMap: [String: String] = [:]   // bank import: Crew pocket name → spending category id
+    var imported: [String: Double] = [:]    // bank import: transaction id → when it was imported (milliseconds since 1970)
+    var savedAt: String? = nil             // ISO time of the last save; sync uses it to pick the newer copy
 
     init() {}
 
@@ -383,6 +416,7 @@ struct BudgetState: Codable, Equatable {
         }
     }
 
+    /// A quick check that a file is a Paycheck Plan backup before importing it.
     static func looksValid(_ data: Data) -> Bool {
         guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
         return obj["recurring"] is [Any]

@@ -1,6 +1,9 @@
 import SwiftUI
 import Charts
 
+/// The Payoff tab. Two sections: Debts (cards and personal loans, strategy, extra
+/// payment, chart, utilization) and Student loans (StudentLoansView.swift).
+/// Payoff dates come from `Engine.simulateAll`.
 struct DebtView: View {
     @EnvironmentObject var store: Store
     @State private var editing: Debt?
@@ -212,6 +215,7 @@ struct ExtraLineCard: View {
     }
 }
 
+/// Add or edit a card or personal loan.
 struct DebtEditSheet: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
@@ -277,6 +281,7 @@ struct DebtEditSheet: View {
 }
 
 
+/// A colored dot with a label, for the payoff chart legend.
 struct PayoffLegendDot: View {
     let color: Color
     let label: String

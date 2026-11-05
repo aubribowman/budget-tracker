@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// The Purchases tab: spending categories with what's left in each, and every purchase
+/// logged this month. The + menu adds a purchase or imports from your bank.
 struct PurchasesView: View {
     @EnvironmentObject var store: Store
     @State private var adding = false
@@ -136,6 +138,7 @@ struct PurchasesView: View {
     }
 }
 
+/// Log a purchase. It goes on the paycheck its date falls in.
 struct AddPurchaseSheet: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss

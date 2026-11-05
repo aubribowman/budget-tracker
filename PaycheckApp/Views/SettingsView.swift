@@ -1,6 +1,8 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Setup (the gear on Home): your name, pay schedule, recurring items, reminders, bank
+/// import, sync and backups, privacy and appearance. Debts and goals are edited on their own screens.
 struct SettingsView: View {
     @EnvironmentObject var store: Store
     @AppStorage("appearance") private var appearance = "auto"
@@ -152,6 +154,7 @@ struct SettingsView: View {
 
 // MARK: - Pay schedule
 
+/// How and when you're paid: semi-monthly or biweekly, paydays, weekend rule, pay-ahead.
 struct ScheduleView: View {
     @EnvironmentObject var store: Store
 
@@ -222,6 +225,7 @@ struct ScheduleView: View {
 
 // MARK: - Recurring items
 
+/// Every recurring item, grouped by type, with add and edit.
 struct RecurringListView: View {
     @EnvironmentObject var store: Store
     @State private var editing: Recurring?
@@ -273,6 +277,7 @@ struct RecurringListView: View {
     }
 }
 
+/// Add or edit a recurring item: name, type, amount, due day, which paycheck, how often.
 struct RecurringEditSheet: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss

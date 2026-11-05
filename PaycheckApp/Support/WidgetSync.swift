@@ -22,6 +22,8 @@ enum WidgetSync {
         var goalTarget: Double
     }
 
+    /// Writes the summary for the current paycheck and asks the widget to redraw.
+    /// The goal shown is the first one not reached yet.
     static func write(_ e: Engine, goals: [Goal]) {
         guard let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupId) else { return }
         let u = e.upcoming()

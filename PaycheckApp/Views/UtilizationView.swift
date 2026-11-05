@@ -63,6 +63,7 @@ struct UtilizationCard: View {
     }
 }
 
+/// Full utilization screen: overall and per card, and what to pay to get under 30% and 10%.
 struct UtilizationView: View {
     @EnvironmentObject var store: Store
 

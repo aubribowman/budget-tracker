@@ -37,6 +37,7 @@ extension Engine {
         }
     }
 
+    /// Saved so far, the planned pace, when you'll reach it, and what it takes to hit the due date.
     func goalStatus(_ g: Goal) -> GoalStatus {
         let saved = g.balance + savedSince(goalId: g.id, asOf: g.asOf)
         let per = plannedPerMonth(goalId: g.id)
@@ -54,6 +55,8 @@ extension Engine {
         return st
     }
 
+    /// Every month from `asOf` through next month (at most 60), so months with no saved
+    /// changes still count. Autopay can mark savings paid without anything being stored.
     private func recentMonths(from asOf: String) -> [String] {
         var out: [String] = []
         var k = asOf.count >= 7 ? String(asOf.prefix(7)) : cfg.startMonth

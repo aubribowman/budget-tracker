@@ -1,10 +1,12 @@
 import Foundation
 import UserNotifications
 
-/// Bill and payday reminders. Rebuilt whenever the budget changes.
+/// Bill and payday reminders. Rebuilt whenever the budget changes (see Store.scheduleSave):
+/// all pending reminders are removed and the next 35 days are scheduled again.
+/// The on/off switch and hour live in UserDefaults, not the budget, so they stay per device.
 enum Notifier {
     static let enabledKey = "remindersOn"
-    static let hourKey = "reminderHour"
+    static let hourKey = "reminderHour"           // hour of the day reminders go off, 0–23
 
     static var enabled: Bool { UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? false }
     static var hour: Int { UserDefaults.standard.object(forKey: hourKey) as? Int ?? 9 }
@@ -16,6 +18,7 @@ enum Notifier {
 
     @MainActor
     static func reschedule(_ e: Engine) async {
+        // iOS keeps at most 64 pending notifications per app, so this sends the soonest 60.
         let center = UNUserNotificationCenter.current()
         center.removeAllPendingNotificationRequests()
         guard enabled else { return }

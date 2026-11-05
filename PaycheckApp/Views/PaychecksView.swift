@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// The Paychecks tab: each paycheck in the month as a card (CheckCard), with its
+/// lines grouped by type. Most edits happen in LineSheet, opened by tapping a line.
 struct PaychecksView: View {
     @EnvironmentObject var store: Store
 
@@ -27,6 +29,7 @@ struct PaychecksView: View {
     }
 }
 
+/// Shown when there's no budget yet: how to bring one over from the web app.
 struct EmptyStart: View {
     var body: some View {
         VStack(spacing: 10) {
@@ -41,6 +44,7 @@ struct EmptyStart: View {
 
 // MARK: - Top card: what to pay now
 
+/// The foldable "Coming up" card: bills to pay now, ones set aside or on autopay, and past-due ones.
 struct UpcomingCard: View {
     @EnvironmentObject var store: Store
 
@@ -98,6 +102,7 @@ struct UpcomingCard: View {
     }
 }
 
+/// Small all-caps heading inside a card.
 struct SectionLabel: View {
     let text: String
     var color: Color = .secondary
@@ -107,6 +112,7 @@ struct SectionLabel: View {
     }
 }
 
+/// A compact bill row in the "Coming up" card, with Set aside and Paid buttons.
 struct QuickRow: View {
     @EnvironmentObject var store: Store
     let line: Line
@@ -136,6 +142,8 @@ struct QuickRow: View {
 
 // MARK: - A paycheck
 
+/// One paycheck: payday, what's coming in, what's left, the lines grouped by type,
+/// extra income, and buttons to add one-time items or extra income.
 struct CheckCard: View {
     @EnvironmentObject var store: Store
     let check: Check
@@ -265,6 +273,7 @@ struct CheckCard: View {
     }
 }
 
+/// A bar split by type showing where this paycheck goes.
 struct AllocationBar: View {
     let totals: Totals
     var body: some View {
@@ -286,6 +295,7 @@ struct AllocationBar: View {
 
 // MARK: - A row on a paycheck
 
+/// Empty circle = not paid, half filled = set aside, check mark = paid.
 struct StatusDot: View {
     let status: String
     var body: some View {
@@ -302,6 +312,8 @@ struct StatusDot: View {
     }
 }
 
+/// One line on a paycheck. Tap the dot to change its status, tap the row for details,
+/// or long-press (right-click on Mac) to skip it or move it to another paycheck.
 struct LineRow: View {
     @EnvironmentObject var store: Store
     let line: Line
@@ -378,6 +390,7 @@ struct LineRow: View {
     }
 }
 
+/// Explains the three status dots.
 struct StatusLegend: View {
     var body: some View {
         HStack(spacing: 14) {
@@ -392,6 +405,8 @@ struct StatusLegend: View {
 
 // MARK: - Sheets
 
+/// Details for one line on one paycheck: status, amount for this paycheck, purchases
+/// (for spending), and which debt the extra payment goes to.
 struct LineSheet: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
@@ -463,6 +478,7 @@ struct LineSheet: View {
     }
 }
 
+/// Add a one-time item to a paycheck.
 struct OneTimeSheet: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss

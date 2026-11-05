@@ -92,6 +92,7 @@ struct StudentLoansSection: View {
     }
 }
 
+/// One student loan: balance now and at repayment, standard payment, payoff month.
 struct LoanCard: View {
     @EnvironmentObject var store: Store
     let loan: Loan
@@ -128,6 +129,7 @@ struct LoanCard: View {
     }
 }
 
+/// Add or edit a student loan.
 struct LoanEditSheet: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss

@@ -80,6 +80,8 @@ extension Store {
         let stamp = Date().timeIntervalSince1970 * 1000
         var usedLines = Set<String>()
 
+        // All rows go in as one change (one save, one sync). Inside `update` the Store's own
+        // editCell can't be used, so this local helper does the same thing on `s`.
         update { s in
             @MainActor func edit(_ key: String, _ n: Int, _ f: (inout Cell) -> Void) {
                 var m = s.months[key] ?? [:]

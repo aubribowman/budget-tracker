@@ -1,9 +1,10 @@
 import SwiftUI
 import LocalAuthentication
 
-/// Face ID (or Touch ID / passcode) lock for the whole app.
+/// Face ID (or Touch ID / passcode) lock for the whole app. RootView in PaycheckApp.swift
+/// decides when to lock (going to the background) and when to ask (coming back).
 enum AppLock {
-    static let enabledKey = "lockWithFaceID"
+    static let enabledKey = "lockWithFaceID"      // UserDefaults key; per device, not synced
 
     /// "Face ID", "Touch ID", "Optic ID", or "Passcode" if no biometrics are set up.
     static var methodName: String {
@@ -17,6 +18,7 @@ enum AppLock {
         }
     }
 
+    /// True when the device has Face ID, Touch ID or a passcode set up.
     static var available: Bool {
         LAContext().canEvaluatePolicy(.deviceOwnerAuthentication, error: nil)
     }

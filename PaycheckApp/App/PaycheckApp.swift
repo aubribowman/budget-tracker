@@ -1,9 +1,10 @@
 import SwiftUI
 
+/// The app's entry point. Creates the one `Store` and hands it to every screen.
 @main
 struct PaycheckPlanApp: App {
     @StateObject private var store = Store()
-    @AppStorage("appearance") private var appearance = "auto"
+    @AppStorage("appearance") private var appearance = "auto"   // auto | light | dark, set in Setup
 
     var body: some Scene {
         WindowGroup {
@@ -21,8 +22,11 @@ struct PaycheckPlanApp: App {
     }
 }
 
+/// The tabs, so screens can switch tabs (Home links to the others).
 enum AppTab: Hashable { case home, paychecks, purchases, month, debt }
 
+/// The tab bar, plus the things that apply to the whole app: the Face ID lock, the
+/// sync timer, refreshing when the app comes back, and the error alert.
 struct RootView: View {
     @EnvironmentObject var store: Store
     @Environment(\.scenePhase) private var phase

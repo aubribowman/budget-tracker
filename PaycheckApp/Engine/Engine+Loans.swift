@@ -1,5 +1,14 @@
 import Foundation
 
+// Student loan math, plus the combined payoff simulation behind the Payoff chart.
+//
+// There are two simulations here, on purpose:
+// - `simulateLoans` looks at student loans alone, for the per-loan numbers on the
+//   Student loans screen (balance at repayment, standard payment).
+// - `simulateAll` runs cards, personal loans and student loans together and is what
+//   every payoff date in the app comes from. It's a port of the web app's
+//   `simulateAll`, so if you change it, check the dates still match the web app.
+
 /// Projection for all student loans together.
 struct LoanSim {
     struct Item { var id: String; var balanceNow: Double; var atRepay: Double; var standard: Double; var payoff: String? }
@@ -20,6 +29,7 @@ extension Engine {
     /// Subsidized loans don't build interest before repayment; the others do.
     func accruesInSchool(_ l: Loan) -> Bool { l.kind != "subsidized" }
 
+    /// The month repayment starts, "yyyy-MM". Treated as this month if it's not set.
     func repayMonth(_ l: Loan) -> String { l.repayStart.count >= 7 ? String(l.repayStart.prefix(7)) : DU.ym(Date()) }
 
     /// Monthly payment that pays off `bal` over `years` at `apr`.
@@ -69,6 +79,9 @@ extension Engine {
         return bal.mapValues { max(0, r2($0)) }
     }
 
+    /// Student loans on their own, month by month: interest builds before repayment, then
+    /// each loan gets its own payment, and anything left over in the plan goes to the
+    /// highest rate first. Used for per-loan numbers, not the payoff dates (see `simulateAll`).
     func simulateLoans() -> LoanSim {
         var sim = LoanSim()
         guard !s.loans.isEmpty else { return sim }
@@ -179,6 +192,8 @@ extension Engine {
     func simulateAll(extra: Double, strategy: String, roll: Bool, lump: [String: Double] = [:]) -> PayoffSim {
         var r = PayoffSim()
         let now = DU.ym(Date())
+        // One entry per debt or loan. For loans not in repayment yet: `start` is months until
+        // repayment, `startBal` the balance then, and `growth` how much it grows each month until then.
         struct D { var id: String; var bal: Double; var apr: Double; var min: Double; var loan: Bool
                    var start = 0; var startBal = 0.0; var growth = 0.0 }
 
@@ -194,6 +209,8 @@ extension Engine {
                         start: st, startBal: c.atStart, growth: st > 0 ? (c.atStart - c.now) / Double(st) : 0))
         }
         r.count = ds.count
+        // The monthly pool: every card's minimum plus the extra. It stays the same size as
+        // debts are paid off, which is how a paid-off card's payment rolls to the next one.
         let poolBase = ds.filter { !$0.loan }.reduce(0) { $0 + $1.min } + extra
         let cmp = order(strategy)
         let target = s.targetDebt
@@ -209,6 +226,7 @@ extension Engine {
 
         while ds.contains(where: { $0.bal > 0.005 }) && m < 480 {
             m += 1
+            // Windfall planner: the one-time payment lands in the first month.
             if m == 1 {
                 for i in ds.indices {
                     guard let a = lump[ds[i].id], a > 0.005 else { continue }
@@ -231,6 +249,7 @@ extension Engine {
                 if ds[i].loan { r.loanInterest += x }
             }
 
+            // Minimums first. Card minimums come out of the pool; loan payments are paid on their own.
             var pool = poolBase
             for i in ds.indices where !ds[i].loan && active(ds[i]) { let p = min(ds[i].min, ds[i].bal, pool); ds[i].bal -= p; pool -= p }
             for i in ds.indices where ds[i].loan && active(ds[i]) { let p = min(ds[i].min, ds[i].bal); ds[i].bal -= p }
@@ -246,6 +265,7 @@ extension Engine {
                 if ds[i].loan && !isTarget(ds[i]) && cardsLeft && anyCardInOrder { continue }
                 let p = min(pool, ds[i].bal); ds[i].bal -= p; pool -= p
             }
+            // Anything still left over (for example, the last card was paid off this month) goes down the same list.
             for i in orderIdx {
                 if pool <= 0.005 { break }
                 let p = min(pool, ds[i].bal); ds[i].bal -= p; pool -= p

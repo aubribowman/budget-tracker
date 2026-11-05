@@ -1,5 +1,21 @@
 import Foundation
 
+// The budget math. `Engine` takes a snapshot of `BudgetState` and works out everything
+// the screens show: paydays, what's on each paycheck, totals, debt balances and payoff.
+//
+// How a paycheck is built:
+// 1. `checksIn` finds the paydays in a month (semi-monthly or biweekly).
+// 2. `windowFor` gives each paycheck a date range: from its payday to the next one,
+//    shifted forward if you pay ahead.
+// 3. `naturalRec` places each recurring item on the paycheck whose window holds its due
+//    date (or on the paycheck it's pinned to).
+// 4. `lines` adds items moved in from other paychecks and the one-time items.
+// 5. `totals` adds the lines up against the paycheck's income.
+//
+// The Engine never changes the budget; all changes go through `Store`. It caches as it
+// goes, and the Store makes a new Engine after every change, so caches never go stale.
+
+/// One payday.
 struct Check: Hashable {
     let key: String       // month "yyyy-MM"
     let n: Int            // 1, 2 or 3 within the month
@@ -8,27 +24,29 @@ struct Check: Hashable {
     let mode: String      // "bw" or "semi"
 }
 
+/// The dates a paycheck covers. A bill is due in this window → it goes on this paycheck.
 struct PayWindow {
     var from: Date
     var to: Date          // exclusive
-    var lead: Int
-    var transition: Bool
-    var gapFrom: Date?
+    var lead: Int         // how many paychecks ahead this one pays (BudgetSettings.payAhead)
+    var transition: Bool  // first paycheck after pay-ahead starts
+    var gapFrom: Date?    // transition only: dates skipped over when the window jumped ahead
     var gapTo: Date?
-    var catchUp: Bool
+    var catchUp: Bool     // transition only: the window was stretched back to cover the gap
 }
 
-/// One row on a paycheck.
+/// One row on a paycheck: a recurring item (with this paycheck's override applied) or a
+/// one-time item. Built fresh by the Engine; never saved.
 struct Line: Identifiable {
     var kind: String          // "rec" or "ex" (one-time)
-    var id: String
+    var id: String            // Recurring or OneTime id
     var name: String
     var type: String
-    var budget: Double
-    var env: Double           // planned amount for this check
+    var budget: Double        // the recurring item's usual amount
+    var env: Double           // planned amount for this check (the override, if any)
     var amount: Double        // counted amount (for spending: the larger of budget and spent)
-    var spent: Double = 0
-    var isEnv: Bool = false
+    var spent: Double = 0     // spending categories: purchases logged so far
+    var isEnv: Bool = false   // a spending category ("envelope") rather than a bill
     var buys: [Buy] = []
     var paid: Bool
     var auto: Bool = false    // paid automatically by autopay
@@ -39,13 +57,13 @@ struct Line: Identifiable {
     var goalId: String = ""
     var every: Int = 1
     var each: Bool = false
-    var meta: String = ""
-    var sortKey: Double = 0
+    var meta: String = ""     // small text under the name, like "Due Mar 3"
+    var sortKey: Double = 0   // days from the start of the window to the due date
     var home: Int             // check the line naturally belongs to
     var homeKey: String       // month of that check
     var dueDate: Date? = nil
-    var moved: Bool = false
-    var homeDate: Date? = nil
+    var moved: Bool = false   // shown here but moved from another paycheck
+    var homeDate: Date? = nil // payday of the paycheck it moved from
     var isExtraLine: Bool = false
 
     var status: String { paid ? "paid" : aside ? "aside" : "unpaid" }
@@ -53,6 +71,7 @@ struct Line: Identifiable {
     var uid: String { "\(homeKey)|\(home)|\(kind)|\(id)" }
 }
 
+/// A logged purchase with the paycheck and category it belongs to.
 struct BuyEntry: Identifiable {
     let check: Check
     let recId: String
@@ -60,14 +79,20 @@ struct BuyEntry: Identifiable {
     var id: String { buy.id }
 }
 
+/// A paycheck added up.
 struct Totals {
-    var income: Double, start: Double, budget: Double, actual: Double, paid: Double, aside: Double
-    var byType: [String: Double], budgetByType: [String: Double]
+    var income: Double        // take-home plus extra income
+    var start: Double         // carried over from the last paycheck (rollover setting)
+    var budget: Double        // planned
+    var actual: Double        // counted, with overspending in categories included
+    var paid: Double, aside: Double
+    var byType: [String: Double], budgetByType: [String: Double]   // keyed by Recurring.type
     var extraIncome = 0.0                 // part of `income` from extra income items
     var left: Double { start + income - actual }
     var plannedLeft: Double { start + income - budget }
 }
 
+/// Result of `Engine.simulate`, the cards-only payoff simulation.
 struct SimResult {
     var months: Int
     var interest: Double
@@ -94,12 +119,14 @@ final class Engine {
 
     // MARK: Paydays
 
+    /// "bw" (biweekly) or "semi" (twice a month) for a month, allowing for a mid-year switch.
     func modeFor(_ key: String) -> String {
         if cfg.mode == "biweekly" && !cfg.bwAnchor.isEmpty { return "bw" }
         if cfg.mode == "switch" && !cfg.bwAnchor.isEmpty && (cfg.switchMonth.isEmpty || key < cfg.switchMonth) { return "bw" }
         return "semi"
     }
 
+    /// Moves a weekend payday to the Friday before or Monday after, per settings.
     private func adjustWeekend(_ d: Date) -> Date {
         let w = DU.weekday(d)
         if cfg.weekend == "friday" { if w == 7 { return DU.addDays(d, -1) }; if w == 1 { return DU.addDays(d, -2) } }
@@ -107,6 +134,7 @@ final class Engine {
         return d
     }
 
+    /// Semi-monthly payday `n` (1 or 2) before the weekend adjustment.
     private func semiNominal(_ key: String, _ n: Int) -> Date {
         let (y, m) = DU.parseYM(key), ld = DU.lastDay(y, m)
         var day = n == 1 ? cfg.payDay1 : (Int(cfg.payDay2) ?? ld)
@@ -114,6 +142,7 @@ final class Engine {
         return DU.date(y, m, min(day, ld))
     }
 
+    /// Biweekly paydays in a month: every 14 days from the anchor payday. A month can have 2 or 3.
     private func bwDates(_ key: String) -> [Date] {
         guard let a = DU.parseISO(cfg.bwAnchor) else { return [] }
         let start = DU.firstOfMonth(key)
@@ -130,6 +159,7 @@ final class Engine {
         return out
     }
 
+    /// The paydays in a month, in order. Paycheck numbers (`n`) start at 1.
     func checksIn(_ key: String) -> [Check] {
         if let c = checkCache[key] { return c }
         let out: [Check]
@@ -146,6 +176,7 @@ final class Engine {
         let l = checksIn(key); return n >= 1 && n <= l.count ? l[n - 1] : nil
     }
 
+    /// The paycheck `k` paychecks before (negative) or after (positive) this one, across months.
     func shiftCheck(_ key: String, _ n: Int, _ k: Int) -> Check? {
         var list = checksIn(key), idx = n - 1 + k, kk = key, g = 0
         while idx >= list.count && g < 8 { idx -= list.count; kk = DU.addMonths(kk, 1); list = checksIn(kk); g += 1 }
@@ -153,14 +184,19 @@ final class Engine {
         return idx >= 0 && idx < list.count ? list[idx] : nil
     }
 
+    /// Take-home for a paycheck in this month when it has no amount of its own.
     func defaultPay(_ key: String) -> Double { modeFor(key) == "bw" ? cfg.bwPay : cfg.pay }
 
+    /// How many paychecks ahead this paycheck pays (0 when pay-ahead is off or hasn't started).
     func leadFor(_ key: String, _ n: Int) -> Int {
         guard cfg.payAhead > 0, let c = check(key, n) else { return 0 }
         if !cfg.payAheadFrom.isEmpty && DU.iso(c.date) < cfg.payAheadFrom { return 0 }
         return cfg.payAhead
     }
 
+    /// The due dates this paycheck covers. Normally from its own payday to the next one.
+    /// With pay-ahead, the window moves forward `lead` paychecks, so today's pay covers
+    /// bills due later. Windows use nominal paydays so a weekend shift doesn't move bills.
     func windowFor(_ key: String, _ n: Int) -> PayWindow {
         let ck = "\(key)|\(n)"
         if let w = windowCache[ck] { return w }
@@ -181,6 +217,7 @@ final class Engine {
 
     // MARK: Lines
 
+    /// Whether a recurring item happens in this month (start and end months, every N months).
     func applies(_ r: Recurring, _ key: String) -> Bool {
         if !r.start.isEmpty && key < r.start { return false }
         if !r.end.isEmpty && key > r.end { return false }
@@ -192,14 +229,17 @@ final class Engine {
         return true
     }
 
+    /// The saved data for one paycheck, or an empty one.
     func cell(_ key: String, _ n: Int) -> Cell { s.months[key]?[String(n)] ?? Cell() }
 
+    /// The extra debt payment on one paycheck: all of it, or split across every paycheck ("each").
     func perCheckExtra(_ key: String, _ when: String? = nil) -> Double {
         let w = when ?? extraRec?.when ?? s.extraWhen ?? "1"
         if w == "each" { let n = max(1, checksIn(key).count); return r2(s.extra / Double(n)) }
         return r2(s.extra)
     }
 
+    /// The recurring item that carries the extra debt payment, if it's on your paychecks.
     var extraRec: Recurring? { s.recurring.first { $0.extraLine } }
 
     func debtName(_ id: String) -> String { s.debts.first { $0.id == id }?.name ?? "your next debt" }
@@ -218,6 +258,7 @@ final class Engine {
                     dueDate: dueDate, isExtraLine: r.extraLine)
     }
 
+    /// Recurring items that belong on this paycheck before any are moved elsewhere.
     private func naturalRec(_ key: String, _ n: Int) -> [Line] {
         guard check(key, n) != nil else { return [] }
         let c = cell(key, n), w = windowFor(key, n)
@@ -226,6 +267,7 @@ final class Engine {
             var r = r0
             let o = c.ov[r.id] ?? Override()
             if r.extraLine {
+                // The extra line points at the focus debt unless this paycheck saved its own.
                 let did = o.debtId ?? (inFocus ? "" : focusDebtId())
                 r.amount = perCheckExtra(key, r.when)
                 r.debtId = did
@@ -234,6 +276,7 @@ final class Engine {
             out.append(recLine(r, o, meta: meta, sortKey: sk, home: n, homeKey: key, dueDate: d, buys: c.buys[r.id] ?? []))
         }
         for r in s.recurring {
+            // A paid extra line stays where it was paid, even if its paycheck setting changed later.
             if r.extraLine, c.ov[r.id]?.paid == true, r.when != "each", r.when != String(n) { push(r, "", -1, nil); continue }
             if r.when == "each" { if applies(r, key) { push(r, "", -1, nil) }; continue }
             if ["1", "2", "3"].contains(r.when) {
@@ -245,6 +288,7 @@ final class Engine {
                 } else { push(r, "", 0, nil) }
                 continue
             }
+            // "auto" with no due day: first paycheck. With a due day: whichever paycheck's window holds it.
             guard let dd = r.dueDay else { if n == 1 && applies(r, key) { push(r, "", 0, nil) }; continue }
             var d = w.from
             while d < w.to {
@@ -258,6 +302,9 @@ final class Engine {
         return out
     }
 
+    /// Everything on one paycheck, sorted by due date, with one-time items last.
+    /// Looks at this month and the months on either side, since a bill can be moved to a
+    /// paycheck in a neighboring month.
     func lines(_ key: String, _ n: Int) -> [Line] {
         let ck = "\(key)|\(n)"
         if let l = lineCache[ck] { return l }
@@ -265,6 +312,7 @@ final class Engine {
         guard n >= 1 && n <= count else { return [] }
         let me = ck
         var rec: [Line] = []
+        // Where a line ends up: "yyyy-MM|n". `moveTo` can be a paycheck number or a full key.
         func target(_ mv: String?, _ k: String, _ h: Int) -> String {
             guard let mv = mv, !mv.isEmpty else { return "\(k)|\(h)" }
             if Int(mv) != nil { return "\(k)|\(mv)" }
@@ -291,6 +339,8 @@ final class Engine {
         return out
     }
 
+    /// One paycheck added up. With rollover, `start` is what was left on the paycheck before
+    /// (added up from the plan's start month; limited to its first 5 years).
     func totals(_ key: String, _ n: Int) -> Totals {
         let ck = "\(key)|\(n)"
         if let t = totalsCache[ck] { return t }
@@ -314,6 +364,7 @@ final class Engine {
         return t
     }
 
+    /// Every paycheck in a month added together, for the Month tab.
     func monthTotals(_ key: String) -> (income: Double, actual: Double, budget: Double, paid: Double, byType: [String: Double], count: Int) {
         var inc = 0.0, act = 0.0, bud = 0.0, pd = 0.0, by: [String: Double] = [:]
         let cs = checksIn(key)
@@ -327,6 +378,8 @@ final class Engine {
 
     // MARK: Debt
 
+    /// Months that could hold payments made after `asOf`: every saved month, plus each month
+    /// from `asOf` to next month (autopay can mark lines paid without anything saved).
     private func monthsToScan(_ asOf: String) -> [String] {
         var keys = Set(s.months.keys)
         let cur = DU.ym(Date())
@@ -337,6 +390,7 @@ final class Engine {
         return Array(keys)
     }
 
+    /// Debt payments for this debt marked paid on paychecks after `asOf`.
     func paidSince(debtId: String, asOf: String) -> Double {
         var sum = 0.0
         for key in monthsToScan(asOf) {
@@ -347,6 +401,7 @@ final class Engine {
         return sum
     }
 
+    /// Today's balance: the entered balance minus payments marked paid since.
     func curBal(_ d: Debt) -> Double {
         if !inFocus, let v = balCache[d.id] { return v }
         let v = max(0, d.balance - paidSince(debtId: d.id, asOf: d.asOf))
@@ -354,6 +409,8 @@ final class Engine {
         return v
     }
 
+    /// Sort order for paying debts down: highest rate (avalanche), smallest balance
+    /// (snowball), or a chosen debt first and then highest rate (target).
     func order(_ strategy: String) -> ((id: String, bal: Double, apr: Double), (id: String, bal: Double, apr: Double)) -> Bool {
         if strategy == "snowball" { return { $0.bal < $1.bal } }
         if strategy == "target", let t = s.targetDebt {
@@ -365,8 +422,11 @@ final class Engine {
         return { $0.apr > $1.apr }
     }
 
+    /// The debt the extra payment goes to right now.
     func focusDebtId() -> String {
         if let f = focusCache { return f }
+        // Balances depend on lines, and the extra line depends on the focus debt. `inFocus`
+        // breaks that loop: while it's set, the extra line has no debt and nothing is cached.
         inFocus = true
         let act = s.debts.map { (id: $0.id, bal: curBal($0), apr: $0.apr) }.filter { $0.bal > 0.005 }
         inFocus = false
@@ -377,6 +437,8 @@ final class Engine {
         return res
     }
 
+    /// Cards and personal loans only, without student loans. The Payoff screen uses it to
+    /// rank debts by payoff order; its dates come from `simulateAll` (Engine+Loans.swift).
     func simulate(extra: Double, strategy: String) -> SimResult {
         struct D { var id: String; var bal: Double; var apr: Double; var min: Double }
         var ds = s.debts.map { D(id: $0.id, bal: curBal($0), apr: $0.apr, min: $0.min) }.filter { $0.bal > 0.005 }
@@ -396,6 +458,7 @@ final class Engine {
         return SimResult(months: m, interest: interest, series: series, payoff: payoff, stuck: m >= 600)
     }
 
+    /// Debt payments planned on paychecks in a month, not counting the extra line or loans.
     func plannedDebtPerMonth(_ key: String) -> Double {
         let per = modeFor(key) == "bw" ? 26.0 / 12 : 2
         return r2(s.recurring.filter { $0.type == "debt" && !$0.loanPlan && !$0.extraLine && applies($0, key) }
@@ -404,6 +467,7 @@ final class Engine {
 
     // MARK: Today
 
+    /// The most recent payday on or before today.
     func currentCheck() -> Check? {
         let cur = DU.ym(Date())
         var best: Check?
@@ -422,6 +486,8 @@ final class Engine {
         return nil
     }
 
+    /// What Home shows: bills to pay from this paycheck, ones set aside or on autopay,
+    /// past-due bills, and a look at the next paycheck.
     struct Upcoming { var toPay: [Line]; var pending: [Line]; var overdue: [Line]; var cur: Check?; var next: Check?; var nextTotal: Double; var nextCount: Int }
 
     func upcoming() -> Upcoming {

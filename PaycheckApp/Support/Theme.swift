@@ -1,6 +1,10 @@
 import SwiftUI
 
+// Colors and small shared pieces of UI. Use these instead of hard-coded colors so
+// light mode, dark mode and the Mac all stay consistent.
+
 extension Color {
+    /// A color from a hex value like 0x0A3323.
     init(hex: UInt32) {
         self.init(.sRGB,
                   red: Double((hex >> 16) & 0xFF) / 255,
@@ -22,20 +26,23 @@ enum Theme {
     static let rosy = Color(hex: 0xD3968C)
     static let midnight = Color(hex: 0x105666)
 
+    // Use these in screens; the named colors above are the raw palette.
     static let accent = Color.adaptive(light: 0x0A3323, dark: 0xD3968C)
     static let accentSoft = Color.adaptive(light: 0xF7F4D5, dark: 0x26231C)
     static let card = SystemColor.card
     static let bg = SystemColor.bg
-    static let good = Color.adaptive(light: 0x5E7A3A, dark: 0xA9BD7E)
-    static let bad = Color.adaptive(light: 0xA8473D, dark: 0xE8A598)
-    static let over = Color.adaptive(light: 0xB4534A, dark: 0xE8806F)
+    static let good = Color.adaptive(light: 0x5E7A3A, dark: 0xA9BD7E)   // money left, on track
+    static let bad = Color.adaptive(light: 0xA8473D, dark: 0xE8A598)    // below zero, past due
+    static let over = Color.adaptive(light: 0xB4534A, dark: 0xE8806F)   // spending over budget
     static let track = SystemColor.track
 }
 
+/// The display name and color for each item type (Recurring.type).
 struct TypeInfo {
     let label: String
     let color: Color
 
+    /// The order type groups appear in on a paycheck.
     static let order = ["bill", "subscription", "expense", "debt", "savings"]
 
     static func of(_ t: String) -> TypeInfo {
@@ -50,6 +57,7 @@ struct TypeInfo {
     }
 }
 
+/// The rounded white card most screens are built from. Apply with `.card()`.
 struct CardStyle: ViewModifier {
     func body(content: Content) -> some View {
         content
@@ -105,6 +113,7 @@ struct FoldChevron: View {
     }
 }
 
+/// A thin rounded progress bar.
 struct ProgressBar: View {
     let value: Double          // 0...1
     var color: Color = Theme.moss

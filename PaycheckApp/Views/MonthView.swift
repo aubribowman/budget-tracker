@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// The Month tab: what came in and went out across the month's paychecks, where your
+/// pay goes by type, and items over budget. The clipboard button opens the monthly review.
 struct MonthView: View {
     @EnvironmentObject var store: Store
     @State private var reviewing = false

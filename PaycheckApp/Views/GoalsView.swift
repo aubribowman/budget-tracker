@@ -48,6 +48,7 @@ struct GoalsView: View {
     }
 }
 
+/// One goal: progress, pace, and the paycheck items linked to it.
 struct GoalCard: View {
     @EnvironmentObject var store: Store
     let goal: Goal
@@ -94,6 +95,7 @@ struct GoalCard: View {
     }
 }
 
+/// Add or edit a savings goal.
 struct GoalEditSheet: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss

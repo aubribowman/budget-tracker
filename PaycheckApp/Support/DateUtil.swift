@@ -2,6 +2,8 @@ import Foundation
 
 /// Date helpers. Months are "yyyy-MM" strings and days are "yyyy-MM-dd",
 /// the same format the web app uses, so backups move between the two.
+/// Both sort correctly as plain strings, which is why the code compares them with `<`.
+/// All dates are at midnight in the device's time zone; nothing here uses times of day.
 enum DU {
     static let cal: Calendar = {
         var c = Calendar(identifier: .gregorian)
@@ -15,17 +17,22 @@ enum DU {
     private static let monthShortFmt: DateFormatter = { let f = DateFormatter(); f.dateFormat = "MMM yyyy"; return f }()
     private static let monthOnlyFmt: DateFormatter = { let f = DateFormatter(); f.dateFormat = "MMM"; return f }()
 
+    // MARK: Building and reading
+
     static func date(_ y: Int, _ m: Int, _ d: Int) -> Date {
         cal.date(from: DateComponents(year: y, month: m, day: d)) ?? Date()
     }
+    /// "yyyy-MM" for a date.
     static func ym(_ d: Date) -> String {
         let c = cal.dateComponents([.year, .month], from: d)
         return String(format: "%04d-%02d", c.year ?? 2026, c.month ?? 1)
     }
+    /// "yyyy-MM-dd" for a date.
     static func iso(_ d: Date) -> String {
         let c = cal.dateComponents([.year, .month, .day], from: d)
         return String(format: "%04d-%02d-%02d", c.year ?? 2026, c.month ?? 1, c.day ?? 1)
     }
+    /// Reads "yyyy-MM-dd" (anything after the first 10 characters is ignored).
     static func parseISO(_ s: String) -> Date? {
         let p = s.prefix(10).split(separator: "-").compactMap { Int($0) }
         guard p.count == 3 else { return nil }
@@ -37,11 +44,15 @@ enum DU {
         let m = p.count > 1 ? Int(p[1]) ?? 1 : 1
         return (y, m)
     }
+    // MARK: Math
+
+    /// "2026-11" + 2 → "2027-01".
     static func addMonths(_ k: String, _ n: Int) -> String {
         let (y, m) = parseYM(k)
         let t = y * 12 + (m - 1) + n
         return String(format: "%04d-%02d", t / 12, t % 12 + 1)
     }
+    /// Months from `a` to `b` ("2026-11" to "2027-01" is 2).
     static func monthsDiff(_ a: String, _ b: String) -> Int {
         let A = parseYM(a), B = parseYM(b)
         return (B.y - A.y) * 12 + (B.m - A.m)
@@ -53,6 +64,7 @@ enum DU {
     static func startOfDay(_ d: Date) -> Date { cal.startOfDay(for: d) }
     static var today: Date { cal.startOfDay(for: Date()) }
     static func addDays(_ d: Date, _ n: Int) -> Date { cal.date(byAdding: .day, value: n, to: d) ?? d }
+    /// Whole days from `a` to `b`.
     static func days(_ a: Date, _ b: Date) -> Int {
         cal.dateComponents([.day], from: startOfDay(a), to: startOfDay(b)).day ?? 0
     }
@@ -62,16 +74,21 @@ enum DU {
         let c = cal.dateComponents([.year, .month], from: d); return (c.year ?? 2026, c.month ?? 1)
     }
 
-    static func short(_ d: Date) -> String { shortFmt.string(from: d) }
+    // MARK: Labels
+
+    static func short(_ d: Date) -> String { shortFmt.string(from: d) }          // "Nov 4"
     static func dayLabel(_ d: Date) -> String { dayFmt.string(from: d) }
+    /// "November 2026", or "Nov 2026" with `short`.
     static func monthLabel(_ k: String, short: Bool = false) -> String {
         (short ? monthShortFmt : monthFmt).string(from: firstOfMonth(k))
     }
     static func monthName(_ k: String) -> String { monthOnlyFmt.string(from: firstOfMonth(k)) }
+    /// "Nov 4–17", or "Nov 28–Dec 11" across months.
     static func range(_ a: Date, _ b: Date) -> String {
         let A = monthOf(a), B = monthOf(b)
         return (A.y == B.y && A.m == B.m) ? "\(short(a))–\(day(b))" : "\(short(a))–\(short(b))"
     }
+    /// 1 → "1st", 22 → "22nd".
     static func ordinal(_ n: Int) -> String {
         let s = ["th", "st", "nd", "rd"], v = n % 100
         let i = (v - 20) % 10
@@ -97,6 +114,8 @@ enum DU {
     }
 }
 
+// MARK: - Money
+
 private let moneyFmt: NumberFormatter = {
     let f = NumberFormatter()
     f.numberStyle = .currency
@@ -113,13 +132,17 @@ private let money0Fmt: NumberFormatter = {
     return f
 }()
 
+/// "$1,234.56". Uses a real minus sign (−) so negative amounts line up with digits.
 func money(_ v: Double) -> String {
     let s = moneyFmt.string(from: NSNumber(value: (v * 100).rounded() / 100)) ?? "$0.00"
     return s.replacingOccurrences(of: "-", with: "−")
 }
+/// "$1,235", rounded to whole dollars.
 func money0(_ v: Double) -> String {
     (money0Fmt.string(from: NSNumber(value: v.rounded())) ?? "$0").replacingOccurrences(of: "-", with: "−")
 }
+/// Rounds to cents. Amounts are stored as Double (like the web app), so round before saving.
 func r2(_ v: Double) -> Double { (v * 100).rounded() / 100 }
 
+/// A new id in the web app's style: a one-letter prefix and 7 random characters.
 func newId(_ prefix: String) -> String { prefix + UUID().uuidString.prefix(7).lowercased() }

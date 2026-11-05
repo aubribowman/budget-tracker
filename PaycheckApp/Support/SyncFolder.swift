@@ -44,6 +44,7 @@ final class SyncFolder: ObservableObject {
         return try Self.read(folder: folder!).map { try JSONDecoder().decode(BudgetState.self, from: $0) }
     }
 
+    /// Stops syncing. The file in the folder is left alone.
     func disconnect() {
         UserDefaults.standard.removeObject(forKey: Self.bookmarkKey)
         UserDefaults.standard.removeObject(forKey: Self.nameKey)

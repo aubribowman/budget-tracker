@@ -300,6 +300,7 @@ private struct GoalsSummary: View {
     }
 }
 
+/// Lets a month string drive `.sheet(item:)`.
 private struct IdentifiedMonth: Identifiable { let id: String }
 
 /// Early in the month: a nudge to look back at last month.
