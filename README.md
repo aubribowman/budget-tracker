@@ -1,6 +1,8 @@
-# Paycheck Plan for iPhone and Mac
+# Paycheck Plan for iPhone, iPad and Mac
 
-A native SwiftUI version of the Paycheck Plan web app. It plans your budget one paycheck at a time: which bills each paycheck covers, what's left to spend, and how fast your debt and loans go away. It reads the same backup file as the web app, so your budget moves over in one step.
+A SwiftUI app that plans your budget one paycheck at a time: which bills each paycheck covers, what's left to spend, and how fast your debt and loans go away. It started as a port of the Paycheck Plan web app and still reads the same backup file, so a budget from the web app moves over in one step.
+
+Runs on iOS 26, iPadOS 26 and macOS 26 or later.
 
 ## Screenshots
 
@@ -15,7 +17,7 @@ Shown with sample data.
   <tr>
     <td align="center"><img src="docs/screenshots/month.png" width="220" alt="Month"><br><sub>Month</sub></td>
     <td align="center"><img src="docs/screenshots/review.png" width="220" alt="Monthly review"><br><sub>Monthly review</sub></td>
-    <td align="center"><img src="docs/screenshots/payoff.png" width="220" alt="Payoff: debts"><br><sub>Payoff: debts and utilization</sub></td>
+    <td align="center"><img src="docs/screenshots/payoff.png" width="220" alt="Payoff: debts"><br><sub>Payoff: debts</sub></td>
   </tr>
   <tr>
     <td align="center"><img src="docs/screenshots/loans.png" width="220" alt="Payoff: student loans"><br><sub>Payoff: student loans</sub></td>
@@ -43,10 +45,12 @@ Shown with sample data.
 - **Credit utilization**: how much of your credit limits you're using overall and per card, and what to pay to get under 30% and 10%. Add a **Credit limit** to a card in its debt settings.
 - **Monthly review**: plan vs. actual, each category over or under, bills not marked paid, debt paid, savings, and a comparison with the month before. Early each month, Home reminds you that last month's review is ready.
 - **Windfall planner**: for a tax refund or bonus. On Home, tap **Got extra money? Plan it**. It suggests a split, shows how much sooner you'll be debt-free and how much interest you'll save, and can apply it to your balances.
-- **Widgets**: small and medium home screen widgets, plus lock screen widgets. They show what's left on your paycheck, bills due, days to payday, spending left, and your top goal.
+- **Widgets**: small and medium home screen widgets on iPhone and iPad, plus lock screen widgets. They show what's left on your paycheck, bills due, days to payday, spending left, and your top goal.
 - **Reminders**: a notification the day before each unpaid bill is due, and one on payday. Turn on in **Setup → Reminders**.
 - **Face ID lock**: asks for Face ID or your passcode when you come back to the app, and hides balances in the app switcher. Turn on in **Setup → Privacy**.
 - **Light and dark mode**, with app icons for both.
+- **Accessibility**: layouts adjust for the largest text sizes, and VoiceOver reads each paycheck line as one item with its amount and status.
+- **Privacy**: everything stays on the device and in the sync folder you choose. No accounts, tracking or analytics.
 
 ## Run it
 
@@ -57,15 +61,17 @@ You need Xcode 27 or later (free in the Mac App Store).
    git clone https://github.com/aubribowman/budget-tracker.git
    ```
 2. Open `PaycheckApp.xcodeproj` in Xcode.
-3. Pick an iPhone simulator from the device menu at the top of the window and press **⌘R**.
+3. Pick an iPhone or iPad simulator from the device menu at the top of the window and press **⌘R**.
 
-The simulator starts with an empty budget. Import a backup (see below) to see your own numbers.
+The app starts with a welcome card on Home: set your paydays, then add your bills and spending. Or tap **Restore from a backup** to load an existing budget (see [Move your data over](#move-your-data-over)).
 
-## Put it on your iPhone
+To run the tests, press **⌘U**.
 
-1. Plug your iPhone into the Mac. On the phone, go to **Settings → Privacy & Security → Developer Mode** and turn it on. The phone restarts.
+## Put it on your iPhone or iPad
+
+1. Plug your iPhone or iPad into the Mac. On the phone, go to **Settings → Privacy & Security → Developer Mode** and turn it on. The phone restarts.
 2. In Xcode, click the blue **PaycheckApp** project at the top of the sidebar. For both the **PaycheckApp** and **PaycheckWidget** targets, open **Signing & Capabilities**, check **Automatically manage signing**, and pick your **Team**.
-3. Choose your iPhone from the device menu and press **⌘R**. The first time, on the phone go to **Settings → General → VPN & Device Management** and trust your developer certificate.
+3. Choose your device from the device menu and press **⌘R**. The first time, on the phone go to **Settings → General → VPN & Device Management** and trust your developer certificate.
 
 The app's ID is `com.aubribowman.PaycheckApp`, the widget's is `com.aubribowman.PaycheckApp.PaycheckWidget`, and they share data through the App Group `group.com.aubribowman.PaycheckApp`. If you sign with a different Apple account and Xcode says an ID is taken, change all three to your own (for example, swap `aubribowman` for your name). Make the same change in `Config/PaycheckApp.entitlements`, `Config/PaycheckApp-macOS.entitlements`, `Config/PaycheckWidget.entitlements`, `PaycheckApp/Services/WidgetSync.swift` and `PaycheckWidget/PaycheckWidget.swift`.
 
@@ -78,7 +84,7 @@ Needs a Mac with an Apple chip.
 1. In Xcode, pick **My Mac** from the device menu at the top of the window.
 2. Press **⌘R**. The first time, Xcode sets up signing for the Mac the same way it does for your iPhone.
 
-The Mac app has everything except widgets, which are iPhone only for now. Face ID becomes Touch ID on Macs that have it.
+The Mac app has everything except widgets, which are iPhone and iPad only for now. Face ID becomes Touch ID on Macs that have it.
 
 ### Keep it in your Applications folder
 
@@ -93,7 +99,7 @@ It quits the app if it's open, moves the old copy to the Trash, installs the new
 ## Move your data over
 
 1. In the web app, go to **Setup → Saving and backups → Download a backup**. Save or AirDrop the file to your iPhone's **Files** app.
-2. In the iPhone app, tap the gear on Home, then **Import a backup**, and choose the file.
+2. In the app, tap **Restore from a backup** on the welcome card, or tap the gear on Home, then **Import a backup**, and choose the file.
 
 To go the other way, use **Create a backup → Share backup file** in the app, then **Restore from a backup** in the web app.
 
@@ -146,14 +152,17 @@ PaycheckApp/                  The app (iPhone and Mac)
     Payoff/                   Debts, the payoff chart, student loans, credit utilization
     Goals/                    Savings goals
     Settings/                 Setup, pay schedule, recurring items, sync
+  Resources/                  Fonts (Space Grotesk and DM Sans, with their licenses) and the
+                              privacy manifest (PrivacyInfo.xcprivacy)
   Assets.xcassets             App icon (light and dark) and colors
+PaycheckAppTests/             Tests for the budget math (run with ⌘U)
 PaycheckWidget/               Home and lock screen widgets
 Config/                       Entitlements (App Group, Mac file access for sync) and the widget's Info.plist
 docs/screenshots/             Screenshots used in this README
 scripts/install-mac.sh        Builds the Mac app and installs it in Applications
 ```
 
-Xcode includes every file in `PaycheckApp/` and `PaycheckWidget/` automatically, so you can add or move Swift files there without changing the project.
+Xcode includes every file in `PaycheckApp/`, `PaycheckWidget/` and `PaycheckAppTests/` automatically, so you can add or move Swift files there without changing the project.
 
 ## How the code works
 
@@ -176,9 +185,19 @@ A paycheck is built like this: find the paydays in the month (`checksIn`), give 
 - **iPhone vs. Mac.** Screens are shared. Put iPhone-only modifiers behind a helper in [Platform.swift](PaycheckApp/Shared/Platform.swift) with a Mac version, instead of adding `#if os(...)` in each screen.
 - **Widget data.** If you change what the widget shows, update both `WidgetSync.Summary` in the app and `WidgetSummary` in the widget.
 
+## Before sending it to the App Store
+
+These are already set up:
+
+- **Privacy manifest**: [PrivacyInfo.xcprivacy](PaycheckApp/Resources/PrivacyInfo.xcprivacy) says the app doesn't track or collect data, and lists its one use of `UserDefaults` (app settings). If you add a new required-reason API or a third-party SDK, update it.
+- **Encryption**: `ITSAppUsesNonExemptEncryption` is `NO`, so App Store Connect won't ask about export compliance on each upload.
+- **Fonts**: both are under the SIL Open Font License, which allows bundling them in an app. Keep the license files next to the fonts.
+
+Still to do in App Store Connect: screenshots for iPhone, iPad and Mac, a privacy policy URL, and the privacy answers ("Data Not Collected").
+
 ## Not yet
 
-- **Widgets on Mac.** Widgets are built for iPhone only.
+- **Widgets on Mac.** Widgets are built for iPhone and iPad only.
 - **Automatic background sync.** Sync works through a folder you pick (see above). Apple's built-in iCloud sync, which needs no setup, requires a paid developer account.
 
 ## If the build fails

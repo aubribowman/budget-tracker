@@ -26,7 +26,10 @@ struct MonthBar: View {
 struct MonthPill: View {
     var body: some View {
         #if os(iOS)
+        // Borderless, so each arrow works on its own inside a List row (Purchases).
+        // Otherwise a tap fires every button in the row and they cancel out.
         MonthBar()
+            .buttonStyle(.borderless)
             .padding(.horizontal, Space.m).padding(.vertical, Space.s)
             .background(Theme.card, in: Capsule())
             .frame(maxWidth: .infinity, alignment: .leading)
