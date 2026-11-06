@@ -201,7 +201,8 @@ struct StatusDot: View {
     let status: String
     var body: some View {
         ZStack {
-            Circle().stroke(status == "paid" ? Theme.good : status == "aside" ? TypeInfo.of("subscription").color : Color.secondary, lineWidth: 2)
+            // strokeBorder keeps the line inside the frame, so the row's clip doesn't shave the edge.
+            Circle().strokeBorder(status == "paid" ? Theme.good : status == "aside" ? TypeInfo.of("subscription").color : Color.secondary, lineWidth: 2)
             if status == "paid" {
                 Circle().fill(Theme.good).transition(.scale.combined(with: .opacity))
                 Image(systemName: "checkmark").font(.system(size: 11, weight: .heavy)).foregroundStyle(.white)
