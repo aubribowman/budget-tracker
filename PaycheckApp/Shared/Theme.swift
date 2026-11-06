@@ -102,7 +102,7 @@ struct CardHeader: View {
         Group {
             if let icon { Label(title, systemImage: icon) } else { Text(title) }
         }
-        .font(.display(.headline, weight: .semibold))
+        .font(.display(.headline, weight: .bold))
         .foregroundStyle(Theme.accent)
         // One line normally; at the largest text sizes, wrap rather than cut the heading off.
         .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)

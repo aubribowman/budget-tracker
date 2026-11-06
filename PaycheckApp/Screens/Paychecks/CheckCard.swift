@@ -22,7 +22,7 @@ struct CheckCard: View {
         VStack(alignment: .leading, spacing: 12) {
             ValueRow(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(["First", "Second", "Third"][min(2, check.n - 1)] + " paycheck").font(.display(.headline, weight: .semibold))
+                    Text(["First", "Second", "Third"][min(2, check.n - 1)] + " paycheck").font(.display(.headline, weight: .bold))
                     Text("Payday \(DU.dayLabel(check.date))").font(.ui(.caption)).foregroundStyle(.secondary)
                 }
             } value: {
