@@ -9,6 +9,7 @@ struct CheckCard: View {
     @State private var incomeText = ""
     @State private var addingOneTime = false
     @State private var editingExtra: IncomeItem?
+    @State private var usingSavings = false
     @AppStorage(Fold.key) private var folded = ""
 
     var body: some View {
@@ -121,9 +122,10 @@ struct CheckCard: View {
                 }
             }
 
-            HStack(spacing: 20) {
-                Button { addingOneTime = true } label: { Label("One-time item", systemImage: "plus") }
-                Button { editingExtra = IncomeItem() } label: { Label("Extra income", systemImage: "plus") }
+            // Side by side when they fit, otherwise stacked.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 20) { addButtons }
+                VStack(alignment: .leading, spacing: Space.s) { addButtons }
             }
             .font(.ui(.subheadline))
             }
@@ -137,6 +139,15 @@ struct CheckCard: View {
         }
         .sheet(isPresented: $addingOneTime) { OneTimeSheet(check: check).macSheet() }
         .sheet(item: $editingExtra) { item in IncomeItemSheet(check: check, item: item).macSheet() }
+        .sheet(isPresented: $usingSavings) { UseSavingsSheet(startCheck: check).macSheet() }
+    }
+
+    @ViewBuilder private var addButtons: some View {
+        Button { addingOneTime = true } label: { Label("One-time item", systemImage: "plus") }
+        Button { editingExtra = IncomeItem() } label: { Label("Extra income", systemImage: "plus") }
+        if !store.state.goals.isEmpty {
+            Button { usingSavings = true } label: { Label("Use savings", systemImage: "arrow.down.circle") }
+        }
     }
 }
 

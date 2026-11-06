@@ -297,3 +297,85 @@ struct BackupTests {
         #expect(try JSONDecoder().decode(BudgetState.self, from: data) == s)
     }
 }
+
+/// Spending money saved in a goal (BudgetState+Savings.swift).
+@MainActor
+struct UseSavingsTests {
+    /// A $500 babysitter fund and $1,200 rent on the first April paycheck.
+    func budget() -> BudgetState {
+        var s = semiBudget([item("Rent", 1200, due: "20")])
+        var g = Goal(); g.name = "Babysitter fund"; g.target = 1000; g.balance = 500; g.asOf = "2027-01-01"
+        s.goals = [g]
+        return s
+    }
+
+    @Test func usingSavingsLeavesPaycheckLeftUnchanged() throws {
+        var s = budget()
+        let before = Engine(s).totals("2027-04", 1)
+        let idResult = s.useSavings(goalId: s.goals[0].id, amount: 200, for: "Babysitter", type: "bill", key: "2027-04", n: 1)
+        let id = try #require(idResult)
+        let e = Engine(s)
+        let t = e.totals("2027-04", 1)
+        #expect(t.income == before.income + 200)
+        #expect(t.extraIncome == 200)
+        #expect(abs(t.left - before.left) < 0.005)
+        // The goal goes down by what was used.
+        #expect(e.goalStatus(s.goals[0]).saved == 300)
+        // The spending is on the paycheck, paid, and says where the money came from.
+        let line = try #require(e.lines("2027-04", 1).first { $0.name == "Babysitter" })
+        #expect(line.paid)
+        #expect(line.amount == 200)
+        #expect(line.meta == "Paid from Babysitter fund")
+        #expect(e.cell("2027-04", 1).addIncome.first?.id == id)
+        #expect(e.cell("2027-04", 1).addIncome.first?.name == "From Babysitter fund")
+    }
+
+    @Test func deletingEitherPartPutsTheMoneyBack() throws {
+        for removeSpending in [false, true] {
+            var s = budget()
+            let incomeIdResult = s.useSavings(goalId: s.goals[0].id, amount: 200, for: "Babysitter", type: "bill", key: "2027-04", n: 1)
+            let incomeId = try #require(incomeIdResult)
+            let spendId = try #require(s.months["2027-04"]?["1"]?.extras.first?.id)
+            s.removeSavingsUse(key: "2027-04", n: 1, id: removeSpending ? spendId : incomeId)
+            let c = Engine(s).cell("2027-04", 1)
+            #expect(c.addIncome.isEmpty)
+            #expect(c.extras.isEmpty)
+            #expect(s.goals[0].balance == 500)
+        }
+    }
+
+    @Test func changingTheAmountKeepsEverythingInStep() throws {
+        var s = budget()
+        let incomeIdResult = s.useSavings(goalId: s.goals[0].id, amount: 200, for: "Babysitter", type: "bill", key: "2027-04", n: 1)
+        let incomeId = try #require(incomeIdResult)
+        s.setSavingsUseAmount(key: "2027-04", n: 1, id: incomeId, to: 250)
+        let c = Engine(s).cell("2027-04", 1)
+        #expect(c.addIncome.first?.amount == 250)
+        #expect(c.extras.first?.amount == 250)
+        #expect(s.goals[0].balance == 250)
+    }
+
+    @Test func ordinaryItemsAreNotLinked() {
+        var s = budget()
+        var x = OneTime(); x.name = "Pizza"; x.amount = 20
+        var inc = IncomeItem(); inc.name = "Refund"; inc.amount = 40
+        s.months["2027-04"] = ["1": { var c = Cell(); c.extras = [x]; c.addIncome = [inc]; return c }()]
+        let c = Engine(s).cell("2027-04", 1)
+        #expect(s.savingsUseId(in: c, id: x.id) == nil)
+        #expect(s.savingsUseId(in: c, id: inc.id) == nil)
+        // Removing does nothing for items that aren't linked.
+        s.removeSavingsUse(key: "2027-04", n: 1, id: x.id)
+        #expect(Engine(s).cell("2027-04", 1).extras.count == 1)
+        #expect(s.goals[0].balance == 500)
+    }
+
+    @Test func linksSurviveABackup() throws {
+        var s = budget()
+        _ = s.useSavings(goalId: s.goals[0].id, amount: 200, for: "Babysitter", type: "bill", key: "2027-04", n: 1)
+        let back = try JSONDecoder().decode(BudgetState.self, from: JSONEncoder().encode(s))
+        #expect(back == s)
+        let c = Engine(back).cell("2027-04", 1)
+        #expect(c.addIncome.first?.goalId == s.goals[0].id)
+        #expect(c.extras.first?.useId == c.addIncome.first?.id)
+    }
+}

@@ -195,6 +195,10 @@ final class Store: ObservableObject {
     /// clears the override.
     func setAmount(_ line: Line, _ v: Double) {
         if line.kind == "ex" {
+            if isSavingsUse(key: line.homeKey, n: line.home, id: line.id) {
+                update { $0.setSavingsUseAmount(key: line.homeKey, n: line.home, id: line.id, to: v) }
+                return
+            }
             editCell(line.homeKey, line.home) { c in if let i = c.extras.firstIndex(where: { $0.id == line.id }) { c.extras[i].amount = v } }
             return
         }
@@ -222,7 +226,13 @@ final class Store: ObservableObject {
         editOverride(line) { o in o.debtId = debtId; o.debtLocked = true }
     }
 
+    /// Deletes a one-time item. If it was paid for with savings, the matching income goes
+    /// too and the money goes back on the goal.
     func deleteOneTime(_ line: Line) {
+        if isSavingsUse(key: line.homeKey, n: line.home, id: line.id) {
+            update { $0.removeSavingsUse(key: line.homeKey, n: line.home, id: line.id) }
+            return
+        }
         editCell(line.homeKey, line.home) { c in c.extras.removeAll { $0.id == line.id } }
     }
 
@@ -238,15 +248,43 @@ final class Store: ObservableObject {
         editCell(key, n) { c in c.income = v }
     }
 
-    /// Adds or updates an extra income item on a paycheck.
+    /// Adds or updates an extra income item on a paycheck. For money taken from savings, a new
+    /// amount also changes the spending it paid for and the goal.
     func saveIncomeItem(key: String, n: Int, _ item: IncomeItem) {
+        if isSavingsUse(key: key, n: n, id: item.id) {
+            update { s in
+                s.setSavingsUseAmount(key: key, n: n, id: item.id, to: item.amount)
+                if let i = s.months[key]?[String(n)]?.addIncome.firstIndex(where: { $0.id == item.id }) {
+                    s.months[key]?[String(n)]?.addIncome[i].name = item.name
+                }
+            }
+            return
+        }
         editCell(key, n) { c in
             if let i = c.addIncome.firstIndex(where: { $0.id == item.id }) { c.addIncome[i] = item } else { c.addIncome.append(item) }
         }
     }
 
+    /// Deletes an extra income item. For money taken from savings, the spending it paid for
+    /// goes too and the money goes back on the goal.
     func deleteIncomeItem(key: String, n: Int, id: String) {
+        if isSavingsUse(key: key, n: n, id: id) {
+            update { $0.removeSavingsUse(key: key, n: n, id: id) }
+            return
+        }
         editCell(key, n) { c in c.addIncome.removeAll { $0.id == id } }
+    }
+
+    // MARK: Using savings
+
+    /// Spends money from a savings goal on a paycheck. See BudgetState+Savings.swift.
+    func useSavings(goalId: String, amount: Double, for name: String, type: String, on check: Check) {
+        update { $0.useSavings(goalId: goalId, amount: amount, for: name, type: type, key: check.key, n: check.n) }
+    }
+
+    /// True if this income item or one-time item is part of money taken from savings.
+    func isSavingsUse(key: String, n: Int, id: String) -> Bool {
+        state.savingsUseId(in: engine.cell(key, n), id: id) != nil
     }
 
     // MARK: Purchases

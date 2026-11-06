@@ -48,7 +48,11 @@ struct IncomeItemSheet: View {
                     TextField("Where it's from (side job, refund…)", text: $item.name)
                     TextField("Amount", text: $amount).decimalPad()
                 } footer: {
-                    Text("Added to this paycheck's money coming in, so it shows in what's left to spend.")
+                    if store.isSavingsUse(key: check.key, n: check.n, id: item.id) {
+                        Text("Taken from a savings goal to pay for something on this paycheck. Changing the amount changes what it paid for and the goal too. Deleting it puts the money back on the goal.")
+                    } else {
+                        Text("Added to this paycheck's money coming in, so it shows in what's left to spend.")
+                    }
                 }
                 if !isNew {
                     Button("Delete", role: .destructive) {

@@ -329,10 +329,14 @@ final class Engine {
         for h in 1...count { take(key, h) }
         for k in [DU.addMonths(key, -1), DU.addMonths(key, 1)] { for c in checksIn(k) { take(k, c.n) } }
         rec.sort { $0.sortKey < $1.sortKey }
-        let ex = cell(key, n).extras.map { e in
-            Line(kind: "ex", id: e.id, name: e.name, type: e.type, budget: e.amount, env: e.amount, amount: e.amount,
-                 paid: e.paid, aside: !e.paid && e.aside == true, debtId: e.debtId ?? "", goalId: e.goalId ?? "",
-                 meta: "One-time", home: n, homeKey: key)
+        let c = cell(key, n)
+        let ex = c.extras.map { e in
+            // Paid for with savings: say which goal it came from.
+            let goal = e.useId.flatMap { u in c.addIncome.first { $0.id == u }?.goalId }
+                .flatMap { g in s.goals.first { $0.id == g }?.name }
+            return Line(kind: "ex", id: e.id, name: e.name, type: e.type, budget: e.amount, env: e.amount, amount: e.amount,
+                        paid: e.paid, aside: !e.paid && e.aside == true, debtId: e.debtId ?? "", goalId: e.goalId ?? "",
+                        meta: goal.map { "Paid from \($0)" } ?? "One-time", home: n, homeKey: key)
         }
         let out = rec + ex
         if !inFocus { lineCache[ck] = out }

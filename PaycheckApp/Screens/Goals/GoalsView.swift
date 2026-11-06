@@ -4,6 +4,7 @@ import SwiftUI
 struct GoalsView: View {
     @EnvironmentObject var store: Store
     @State private var editing: Goal?
+    @State private var using: Goal?
 
     var body: some View {
         let e = store.engine
@@ -30,7 +31,11 @@ struct GoalsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading).card()
 
                     ForEach(goals) { g in
-                        Button { editing = g } label: { GoalCard(goal: g) }.buttonStyle(.plain)
+                        // Tap the card to edit it. "Use savings" inside is its own button.
+                        GoalCard(goal: g, onUse: { using = g })
+                            .contentShape(Rectangle())
+                            .onTapGesture { editing = g }
+                            .accessibilityAction(named: "Edit goal") { editing = g }
                     }
                 }
 
@@ -45,6 +50,7 @@ struct GoalsView: View {
         .background(Theme.bg)
         .navigationTitle("Savings goals")
         .sheet(item: $editing) { g in GoalEditSheet(goal: g).macSheet() }
+        .sheet(item: $using) { g in UseSavingsSheet(startGoal: g.id).macSheet() }
     }
 }
 
@@ -52,6 +58,8 @@ struct GoalsView: View {
 struct GoalCard: View {
     @EnvironmentObject var store: Store
     let goal: Goal
+    /// Shows a "Use savings" button when there's money saved.
+    var onUse: (() -> Void)? = nil
 
     var body: some View {
         let st = store.engine.goalStatus(goal)
@@ -82,6 +90,13 @@ struct GoalCard: View {
                 } else {
                     Text("From " + linked.map(\.name).joined(separator: ", ")).font(.ui(.caption)).foregroundStyle(.secondary)
                 }
+            }
+            if let onUse, st.saved > 0.005 {
+                Button(action: onUse) {
+                    Label("Use savings", systemImage: "arrow.down.circle").font(.ui(.subheadline).weight(.semibold))
+                }
+                .buttonStyle(.borderless)
+                .padding(.top, 2)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

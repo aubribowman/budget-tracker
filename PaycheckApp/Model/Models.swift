@@ -184,6 +184,7 @@ struct OneTime: Codable, Identifiable, Equatable {
     var debtId: String? = nil
     var goalId: String? = nil
     var tx: String? = nil
+    var useId: String? = nil              // paid for with savings: the IncomeItem it was taken in as (see BudgetState+Savings)
 
     init() {}
 
@@ -198,6 +199,7 @@ struct OneTime: Codable, Identifiable, Equatable {
         debtId = c.str(.debtId)
         goalId = c.str(.goalId)
         tx = c.str(.tx)
+        useId = c.str(.useId)
     }
 }
 
@@ -228,6 +230,7 @@ struct IncomeItem: Codable, Identifiable, Equatable {
     var id: String = "i" + UUID().uuidString.prefix(7).lowercased()
     var name: String = ""
     var amount: Double = 0
+    var goalId: String? = nil             // money taken out of this savings goal (see BudgetState+Savings)
 
     init() {}
 
@@ -236,6 +239,7 @@ struct IncomeItem: Codable, Identifiable, Equatable {
         id = c.str(.id) ?? "i" + UUID().uuidString.prefix(7).lowercased()
         name = c.str(.name) ?? ""
         amount = c.dbl(.amount) ?? 0
+        goalId = c.str(.goalId)
     }
 }
 
