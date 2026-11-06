@@ -268,8 +268,9 @@ private struct SpendingCard: View {
     }
 }
 
-/// Small bars of what was spent on each of the last six paychecks, this one highlighted,
-/// so you can see at a glance whether this paycheck is running high or low.
+/// What was spent on each of the last few paychecks, with the amount above each bar, the
+/// payday under it, and a dashed line for the usual amount, so you can tell at a glance
+/// whether this paycheck is running high or low. This paycheck is the colored bar.
 private struct SpendingTrend: View {
     @EnvironmentObject var store: Store
     let current: Check
@@ -278,37 +279,75 @@ private struct SpendingTrend: View {
 
     var body: some View {
         let bars = recent()
-        // Only once there's something to compare with: at least one earlier paycheck with spending.
-        if bars.count >= 2 && bars.dropLast().contains(where: { $0.spent > 0.004 }) {
-            let past = bars.dropLast().map(\.spent)
-            let avg = past.reduce(0, +) / Double(past.count)
-            VStack(alignment: .leading, spacing: Space.xs) {
-                HStack {
-                    Text("Last \(bars.count) paychecks").font(.ui(.caption)).foregroundStyle(.secondary)
-                    Spacer()
-                    Text("Usually \(money0(avg))").font(.ui(.caption)).foregroundStyle(.secondary).monospacedDigit()
+        // Earlier paychecks with spending logged. Ones with nothing logged would pull
+        // "Usually" down, so they show as an empty slot but don't count toward it.
+        let past = bars.filter { !$0.now && $0.spent > 0.004 }
+        // Only once there's something to compare with.
+        if !past.isEmpty {
+            let avg = past.map(\.spent).reduce(0, +) / Double(past.count)
+            let top = max(bars.map(\.spent).max() ?? 0, avg, 1)
+            let color = TypeInfo.of("expense").color
+            VStack(alignment: .leading, spacing: Space.s) {
+                ValueRow(alignment: .firstTextBaseline) {
+                    Text("Spent per paycheck").font(.ui(.caption).weight(.semibold)).foregroundStyle(.secondary)
+                } value: {
+                    HStack(spacing: 4) {
+                        // Key for the dashed line on the chart.
+                        Path { p in p.move(to: CGPoint(x: 0, y: 1)); p.addLine(to: CGPoint(x: 14, y: 1)) }
+                            .stroke(.secondary, style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                            .frame(width: 14, height: 2)
+                        Text("Usually \(money0(avg))")
+                    }
+                    .font(.ui(.caption)).foregroundStyle(.secondary).monospacedDigit()
                 }
-                Chart(bars) { b in
-                    BarMark(x: .value("Paycheck", b.label), y: .value("Spent", b.spent), width: .ratio(0.6))
-                        .cornerRadius(3)
-                        .foregroundStyle(b.now ? TypeInfo.of("expense").color : Theme.track)
+                Chart {
+                    ForEach(bars) { b in
+                        // A short stub for $0, so an empty paycheck still has a visible slot.
+                        BarMark(x: .value("Paycheck", b.id), y: .value("Spent", max(b.spent, top * 0.03)), width: .ratio(0.6))
+                            .cornerRadius(3)
+                            .foregroundStyle(b.now ? color : Theme.track)
+                            .annotation(position: .top, spacing: 3) {
+                                Text(money0(b.spent))
+                                    .font(.ui(.caption2).weight(b.now ? .bold : .regular))
+                                    .foregroundStyle(b.now ? .primary : .secondary)
+                                    .monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
+                            }
+                    }
+                    RuleMark(y: .value("Usually", avg))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                        .foregroundStyle(Color.secondary)   // .secondary alone takes the accent color in a chart
                 }
-                .chartXAxis(.hidden)
+                .chartXAxis {
+                    AxisMarks { v in
+                        AxisValueLabel {
+                            let b = bars.first { $0.id == v.as(String.self) }
+                            Text(b?.now == true ? "Now" : (b?.label ?? ""))
+                                .font(.ui(.caption2).weight(b?.now == true ? .bold : .regular))
+                                .foregroundStyle(b?.now == true ? .primary : .secondary)
+                        }
+                    }
+                }
                 .chartYAxis(.hidden)
-                .frame(height: 44)
+                .chartYScale(domain: 0 ... top * 1.25)
+                .dynamicTypeSize(...DynamicTypeSize.xxLarge)
+                .frame(height: 96)
                 .animation(.snappy, value: bars.map(\.spent))
             }
+            .padding(.vertical, Space.xs)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Spending on recent paychecks: usually \(money0(avg)), \(money0(bars.last?.spent ?? 0)) so far on this one.")
+            .accessibilityLabel("Spent per paycheck")
+            .accessibilityValue("\(money0(bars.last?.spent ?? 0)) so far on this paycheck. Usually \(money0(avg)).")
         }
     }
 
-    /// This paycheck and up to five before it, oldest first.
+    /// This paycheck and up to five before it, oldest first. Paychecks from before the
+    /// budget's start month are left out, since nothing was tracked then.
     func recent() -> [Bar] {
         let e = store.engine
+        let start = store.state.settings.startMonth
         var checks: [Check] = []
         var m = current.key
-        for _ in 0 ..< 4 { checks += e.checksIn(m); m = DU.addMonths(m, -1) }
+        for _ in 0 ..< 4 where m >= start { checks += e.checksIn(m); m = DU.addMonths(m, -1) }
         let picked = checks.filter { $0.date <= current.date }.sorted { $0.date < $1.date }.suffix(6)
         return picked.map { c in
             let spent = e.lines(c.key, c.n).filter { $0.type == "expense" && !$0.skip }.reduce(0) { $0 + $1.spent }
