@@ -11,10 +11,6 @@ struct ScheduleView: View {
         Binding(get: { DU.parseISO(store.state.settings[keyPath: kp]) ?? Date() },
                 set: { v in store.settings { $0[keyPath: kp] = DU.iso(v) } })
     }
-    func monthBind(_ kp: WritableKeyPath<BudgetSettings, String>) -> Binding<Date> {
-        Binding(get: { DU.firstOfMonth(store.state.settings[keyPath: kp].isEmpty ? DU.ym(Date()) : store.state.settings[keyPath: kp]) },
-                set: { v in store.settings { $0[keyPath: kp] = DU.ym(v) } })
-    }
     func moneyBind(_ kp: WritableKeyPath<BudgetSettings, Double>) -> Binding<String> {
         Binding(get: { String(format: "%.2f", store.state.settings[keyPath: kp]) },
                 set: { v in if let d = Double(v) { store.settings { $0[keyPath: kp] = d } } })
@@ -27,8 +23,8 @@ struct ScheduleView: View {
                 Picker("How you’re paid", selection: bind(\.mode)) {
                     Text("Semi-monthly").tag("semi"); Text("Biweekly").tag("biweekly"); Text("Biweekly, then semi-monthly").tag("switch")
                 }
-                DatePicker("Budget starts", selection: monthBind(\.startMonth), displayedComponents: .date)
-            } footer: { Text("Budget starts uses the month of the date you pick.") }
+                MonthMenu(title: "Budget starts", selection: bind(\.startMonth))
+            }
 
             if s.mode != "semi" {
                 Section("Biweekly") {
@@ -36,7 +32,7 @@ struct ScheduleView: View {
                     HStack { Text("Take-home per check"); Spacer(); TextField("0.00", text: moneyBind(\.bwPay)).decimalPad().multilineTextAlignment(.trailing) }
                     if s.mode == "switch" {
                         DatePicker("Last biweekly payday", selection: dateBind(\.bwEnd), displayedComponents: .date)
-                        DatePicker("Semi-monthly starts", selection: monthBind(\.switchMonth), displayedComponents: .date)
+                        MonthMenu(title: "Semi-monthly starts", selection: bind(\.switchMonth), allowNone: true)
                     }
                 }
             }
@@ -66,5 +62,30 @@ struct ScheduleView: View {
         }
         .navigationTitle("Paydays")
         .inlineTitle()
+    }
+}
+
+/// Picks a month ("yyyy-MM") from a menu. These settings only keep the month, so a full
+/// date picker would snap back to the 1st whenever you changed the day, which looked
+/// like it hadn't saved.
+private struct MonthMenu: View {
+    let title: String
+    @Binding var selection: String
+    /// Adds "Not set" for an empty value (the switch month starts out empty).
+    var allowNone = false
+
+    /// A year back to two years ahead of today, plus the saved month if it's outside that.
+    private var months: [String] {
+        let now = DU.ym(Date())
+        var list = (-12...24).map { DU.addMonths(now, $0) }
+        if !selection.isEmpty && !list.contains(selection) { list.append(selection); list.sort() }
+        return list
+    }
+
+    var body: some View {
+        Picker(title, selection: $selection) {
+            if allowNone || selection.isEmpty { Text("Not set").tag("") }
+            ForEach(months, id: \.self) { Text(DU.monthLabel($0)).tag($0) }
+        }
     }
 }

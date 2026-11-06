@@ -277,12 +277,11 @@ struct SplitMoney: View {
     var body: some View {
         let s = money(value)
         let parts = s.split(separator: ".", maxSplits: 1).map(String.init)
-        // One piece of text, so at large text sizes both parts shrink together instead of
-        // the dollars getting cut off.
+        // Smaller cents on the same baseline as the dollars. One piece of text, so at large
+        // text sizes both parts shrink together instead of the dollars getting cut off.
         let dollars = Text(parts[0]).font(.display(size: size * scale, weight: .heavy))
         let cents = Text(parts.count > 1 ? "." + parts[1] : "")
-            .font(.display(size: size * scale * 0.45, weight: .heavy))
-            .baselineOffset(size * scale * 0.42)
+            .font(.display(size: size * scale * 0.5, weight: .heavy))
         Text("\(dollars)\(cents)")
         .monospacedDigit()
         .lineLimit(1).minimumScaleFactor(0.3)

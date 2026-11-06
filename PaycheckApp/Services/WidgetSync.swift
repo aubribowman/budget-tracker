@@ -5,7 +5,9 @@ import WidgetKit
 /// can't read the app's data, so the app writes this to the shared App Group folder.
 /// Keep the fields in step with WidgetSummary in PaycheckWidget/PaycheckWidget.swift.
 enum WidgetSync {
-    static let groupId = "group.com.aubribowman.PaycheckApp"
+    /// The App Group shared with the widget: "group." plus the app's ID. The ID comes from
+    /// BUNDLE_ID_PREFIX in the project, so changing that one setting changes this too.
+    static let groupId = "group." + (Bundle.main.bundleIdentifier ?? "com.aubribowman.PaycheckApp")
 
     private struct Summary: Codable {
         var updated: Date

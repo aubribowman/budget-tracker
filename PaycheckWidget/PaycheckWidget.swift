@@ -17,7 +17,12 @@ struct WidgetSummary: Codable {
     var goalSaved: Double
     var goalTarget: Double
 
-    static let groupId = "group.com.aubribowman.PaycheckApp"
+    /// The App Group shared with the app: "group." plus the app's ID, which is the
+    /// widget's ID without ".PaycheckWidget" on the end.
+    static let groupId: String = {
+        let id = Bundle.main.bundleIdentifier ?? "com.aubribowman.PaycheckApp.PaycheckWidget"
+        return "group." + id.split(separator: ".").dropLast().joined(separator: ".")
+    }()
     static let fileName = "widget.json"
 
     static func load() -> WidgetSummary? {

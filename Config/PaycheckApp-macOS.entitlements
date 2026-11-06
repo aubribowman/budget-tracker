@@ -4,7 +4,7 @@
 <dict>
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.com.aubribowman.PaycheckApp</string>
+		<string>group.$(BUNDLE_ID_PREFIX).PaycheckApp</string>
 	</array>
 	<!-- Lets the app reopen the sync folder you picked after it restarts. -->
 	<key>com.apple.security.files.bookmarks.app-scope</key>

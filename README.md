@@ -2,7 +2,15 @@
 
 A SwiftUI app that plans your budget one paycheck at a time: which bills each paycheck covers, what's left to spend, and how fast your debt and loans go away. It started as a port of the Paycheck Plan web app and still reads the same backup file, so a budget from the web app moves over in one step.
 
-Runs on iOS 26, iPadOS 26 and macOS 26 or later.
+Runs on iOS 26, iPadOS 26 and macOS 26 or later. Free and open source under the [MIT License](LICENSE): build it for yourself, change it, or use parts of it in your own projects.
+
+**Built with**
+
+- **SwiftUI**, with one codebase for iPhone, iPad and Mac
+- **WidgetKit** for home and lock screen widgets, sharing data with the app through an App Group
+- **Swift Testing** for the budget math
+- **Swift Charts** for the payoff chart and the spending breakdown
+- No third-party code, no accounts and no server. Your budget stays on your devices.
 
 ## Screenshots
 
@@ -73,7 +81,14 @@ To run the tests, press **⌘U**.
 2. In Xcode, click the blue **PaycheckApp** project at the top of the sidebar. For both the **PaycheckApp** and **PaycheckWidget** targets, open **Signing & Capabilities**, check **Automatically manage signing**, and pick your **Team**.
 3. Choose your device from the device menu and press **⌘R**. The first time, on the phone go to **Settings → General → VPN & Device Management** and trust your developer certificate.
 
-The app's ID is `com.aubribowman.PaycheckApp`, the widget's is `com.aubribowman.PaycheckApp.PaycheckWidget`, and they share data through the App Group `group.com.aubribowman.PaycheckApp`. If you sign with a different Apple account and Xcode says an ID is taken, change all three to your own (for example, swap `aubribowman` for your name). Make the same change in `Config/PaycheckApp.entitlements`, `Config/PaycheckApp-macOS.entitlements`, `Config/PaycheckWidget.entitlements`, `PaycheckApp/Services/WidgetSync.swift` and `PaycheckWidget/PaycheckWidget.swift`.
+### Use your own app ID
+
+The app's ID is already taken by the original developer's account, so set your own before running on a device or Mac:
+
+1. In Xcode, click the blue **PaycheckApp** project at the top of the sidebar, then the **PaycheckApp** project (not a target) in the list beside it.
+2. Open **Build Settings**, search for `BUNDLE_ID_PREFIX`, and change `com.aubribowman` to something of your own, like `com.yourname`.
+
+That one setting sets the app's ID (`com.yourname.PaycheckApp`), the widget's (`com.yourname.PaycheckApp.PaycheckWidget`) and the App Group they share (`group.com.yourname.PaycheckApp`). The code works out the App Group from the app's ID, so there's nothing else to change.
 
 With a free Apple ID, the app stops opening after 7 days. Run it from Xcode again to reset that. A paid Apple Developer account ($99/year) removes the limit and adds TestFlight.
 
@@ -160,6 +175,7 @@ PaycheckWidget/               Home and lock screen widgets
 Config/                       Entitlements (App Group, Mac file access for sync) and the widget's Info.plist
 docs/screenshots/             Screenshots used in this README
 scripts/install-mac.sh        Builds the Mac app and installs it in Applications
+LICENSE                       MIT License
 ```
 
 Xcode includes every file in `PaycheckApp/`, `PaycheckWidget/` and `PaycheckAppTests/` automatically, so you can add or move Swift files there without changing the project.
@@ -184,16 +200,7 @@ A paycheck is built like this: find the paydays in the month (`checksIn`), give 
 - **Run the tests after changing the math.** The tests in [PaycheckAppTests](PaycheckAppTests) check paydays, which paycheck each bill lands on, totals, rollover and payoff dates. Run them with Product → Test (⌘U).
 - **iPhone vs. Mac.** Screens are shared. Put iPhone-only modifiers behind a helper in [Platform.swift](PaycheckApp/Shared/Platform.swift) with a Mac version, instead of adding `#if os(...)` in each screen.
 - **Widget data.** If you change what the widget shows, update both `WidgetSync.Summary` in the app and `WidgetSummary` in the widget.
-
-## Before sending it to the App Store
-
-These are already set up:
-
-- **Privacy manifest**: [PrivacyInfo.xcprivacy](PaycheckApp/Resources/PrivacyInfo.xcprivacy) says the app doesn't track or collect data, and lists its one use of `UserDefaults` (app settings). If you add a new required-reason API or a third-party SDK, update it.
-- **Encryption**: `ITSAppUsesNonExemptEncryption` is `NO`, so App Store Connect won't ask about export compliance on each upload.
-- **Fonts**: both are under the SIL Open Font License, which allows bundling them in an app. Keep the license files next to the fonts.
-
-Still to do in App Store Connect: screenshots for iPhone, iPad and Mac, a privacy policy URL, and the privacy answers ("Data Not Collected").
+- **Privacy manifest.** [PrivacyInfo.xcprivacy](PaycheckApp/Resources/PrivacyInfo.xcprivacy) says the app doesn't track or collect data, and lists its one use of `UserDefaults`. Update it if you add an API Apple asks apps to explain, or a third-party SDK. It's also what the App Store needs, if you ever ship your own copy.
 
 ## Not yet
 
@@ -203,4 +210,9 @@ Still to do in App Store Connect: screenshots for iPhone, iPad and Mac, a privac
 ## If the build fails
 
 1. Try **Product → Clean Build Folder** (⇧⌘K) and build again.
-2. If it still fails, open the **Issue navigator** (the triangle icon in Xcode's left sidebar), copy the red error messages with their file names, and paste them to Claude.
+2. If Xcode says **No Account for Team** or an ID is unavailable, see [Use your own app ID](#use-your-own-app-id) and pick your own **Team** under **Signing & Capabilities**.
+3. If it still fails, open the **Issue navigator** (the triangle icon in Xcode's left sidebar) to see the errors. If you think it's a bug, open an issue on GitHub with the error messages.
+
+## License
+
+The code is under the [MIT License](LICENSE). The fonts, Space Grotesk and DM Sans, are under the SIL Open Font License; their license files are in [PaycheckApp/Resources/Fonts](PaycheckApp/Resources/Fonts).

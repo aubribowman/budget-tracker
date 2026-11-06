@@ -8,7 +8,6 @@
 
 set -euo pipefail
 
-APP_ID="com.aubribowman.PaycheckApp"   # change this if you changed the app's ID in Xcode
 DEST="/Applications/PaycheckApp.app"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -25,6 +24,9 @@ if ! xcodebuild -project "$ROOT/PaycheckApp.xcodeproj" -scheme PaycheckApp -conf
     echo "Full log: $LOG"
     exit 1
 fi
+
+# The app's ID, read from the build (it comes from BUNDLE_ID_PREFIX in the project).
+APP_ID="$(defaults read "$BUILT/Contents/Info" CFBundleIdentifier)"
 
 # Quit the app if it's open, so it can be replaced.
 if pgrep -f "$DEST/Contents/MacOS/" > /dev/null; then
