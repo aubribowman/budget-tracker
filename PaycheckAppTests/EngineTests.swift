@@ -442,3 +442,35 @@ struct BalanceSinceTests {
         #expect(Engine(s).goalStatus(s.goals[0]).saved == 300)
     }
 }
+
+/// The letter and color badge for a purchase's store.
+struct MerchantBadgeTests {
+    @Test func bankNamesAndTypedNamesMatch() throws {
+        let imported = try #require(Merchant("SQ *KROGER #456 DUBLIN OH"))
+        let typed = try #require(Merchant("Kroger"))
+        #expect(imported.letter == "K")
+        #expect(imported.key == typed.key)
+        #expect(imported.color == typed.color)
+    }
+
+    @Test func lettersComeFromTheStoreName() {
+        #expect(Merchant("Aldi")?.letter == "A")
+        #expect(Merchant("trader joe's")?.letter == "T")
+        #expect(Merchant("7-ELEVEN 33021")?.letter == "7")
+        #expect(Merchant("AMZN Mktp US*2K4")?.letter == "A")
+    }
+
+    @Test func noNameMeansNoBadge() {
+        #expect(Merchant("") == nil)
+        #expect(Merchant("  ") == nil)
+        #expect(Merchant("#1234") == nil)
+    }
+
+    @Test func colorsStayTheSameEveryLaunch() {
+        // The color index comes from a fixed sum of the letters, so it can't change
+        // between launches (Swift's hashValue would).
+        let a = Merchant("Kroger")!.color, b = Merchant("Kroger")!.color
+        #expect(a == b)
+        #expect(Set(["kroger", "aldi", "shell", "target", "concert"].map { "\(Merchant($0)!.color)" }).count > 1)
+    }
+}

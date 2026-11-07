@@ -40,7 +40,7 @@ Shown with sample data.
 
 - **Home**: what's left on this paycheck, your next payday, bills to pay now, spending left, debt, and savings goals. Each card folds to one line. The gear in the top corner opens **Setup**.
 - **Paychecks**: every paycheck in the month with its bills grouped by type. Tap an item's circle to mark it paid (the same circle works in **To pay now** on Home and Paychecks), or long-press to set it aside. Every status change shows an **Undo** bar for a few seconds. Also autopay, moving a bill to another paycheck, skipping a month, one-time items, and pay-ahead. Paychecks and type groups fold. One-time items, extra income and **Use savings** are under **Add to this paycheck**.
-- **Purchases**: spending categories stacked with what's left in each, logging purchases, moving them between categories, swipe to delete, and **Import from bank** in the **+** menu.
+- **Purchases**: spending categories stacked with what's left in each, logging purchases, moving them between categories, swipe to delete, and **Import from bank** in the **+** menu. Each purchase shows its store's first letter in a color worked out from the name, so the same store always looks the same.
 - **Month**: what came in and went out, where your pay goes, and over-budget items. The clipboard button opens the **monthly review**.
 - **Payoff**: two sections. Each debt shows the balance you entered and the payments marked paid since, so you can see where today's balance comes from.
   - **Debts**: your debt-free date, Avalanche, Snowball, or Pick a debt, the extra payment line on your paychecks, and **credit utilization**.

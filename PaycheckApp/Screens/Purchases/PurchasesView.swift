@@ -107,7 +107,8 @@ struct PurchasesView: View {
     func purchaseRow(_ x: BuyEntry) -> some View {
         let cat = envs.first { $0.id == x.recId }
         return ValueRow(spacing: Space.m) {
-            IconBadge(icon: cat.map { ItemIcon.of($0) } ?? "bag", color: TypeInfo.of("expense").color)
+            MerchantBadge(note: x.buy.note,
+                          fallbackIcon: cat.map { ItemIcon.of($0) } ?? "bag", color: TypeInfo.of("expense").color, size: 38)
             VStack(alignment: .leading, spacing: 2) {
                 Text(x.buy.note.isEmpty ? "Purchase" : x.buy.note)
                 Text("\(DU.parseISO(x.buy.date).map { DU.short($0) } ?? ""), \(envs.first { $0.id == x.recId }?.name ?? "Spending")\(x.buy.tx != nil ? ", imported" : "")")
