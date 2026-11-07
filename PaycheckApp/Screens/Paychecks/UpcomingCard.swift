@@ -76,7 +76,7 @@ struct SectionLabel: View {
     }
 }
 
-/// A compact bill row in the "Coming up" card, with Set aside and Paid buttons.
+/// A compact bill row in the "To pay now" card: tap the circle to mark it paid, long-press to set it aside.
 struct QuickRow: View {
     @EnvironmentObject var store: Store
     let line: Line
@@ -95,14 +95,15 @@ struct QuickRow: View {
             }
         } value: {
             Text(money(line.amount)).font(.ui(.subheadline).weight(.bold)).monospacedDigit()
-            Menu {
-                if !line.aside && !pending { Button("Set aside") { store.setStatus(line, "aside") } }
-                Button(pending ? "Cleared" : "Paid") { store.setStatus(line, "paid") }
-            } label: {
-                Image(systemName: "checkmark.circle").font(.ui(.title3))
-            }
-            .accessibilityLabel("Mark \(line.name) paid")
-            .sensoryFeedback(trigger: line.status) { _, new in new == "paid" ? .success : .selection }
+            // Same as on a paycheck: tap the circle to mark it paid. Set aside is in the long-press menu.
+            Button { store.togglePaid(line) } label: { StatusDot(status: line.status) }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Mark \(line.name) \(pending ? "cleared" : "paid")")
+                .sensoryFeedback(trigger: line.status) { _, new in new == "paid" ? .success : .selection }
+        }
+        .contextMenu {
+            Button(pending ? "Cleared" : "Mark paid") { store.setStatus(line, "paid") }
+            if !line.aside && !pending { Button("Set aside") { store.setStatus(line, "aside") } }
         }
         .swipeRow(leading: SwipeAction(label: pending ? "Cleared" : "Mark paid", icon: "checkmark", color: Theme.good) {
             store.setStatus(line, "paid")

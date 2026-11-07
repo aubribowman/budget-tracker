@@ -43,9 +43,11 @@ struct RootView: View {
     @AppStorage(AppLock.enabledKey) private var lockOn = false
     @State private var locked = UserDefaults.standard.bool(forKey: AppLock.enabledKey)
     @State private var unlocking = false
+    @AppStorage(Review.key) private var reviewed = ""
 
     var body: some View {
         tabs
+            .overlay(alignment: .bottom) { UndoToast() }
             .macZoom()
             .overlay {
                 // Cover the app while locked, and in the app switcher so balances stay private.
@@ -83,14 +85,20 @@ struct RootView: View {
                 .tag(AppTab.paychecks)
             PurchasesView()
                 .tabItem { tabLabel("Purchases", "cart") }
+                // How many spending categories are over on this paycheck.
+                .badge(categoriesOver)
                 .tag(AppTab.purchases)
             MonthView()
                 .tabItem { tabLabel("Month", "chart.pie") }
+                // A dot while last month's review is waiting, like Home's reminder.
+                .badge(Review.pending(store, reviewed: reviewed) != nil ? Text(" ") : nil)
                 .tag(AppTab.month)
             PayoffView()
                 .tabItem { tabLabel("Payoff", "flag.checkered") }
                 .tag(AppTab.debt)
         }
+        // A tab bar on iPhone, a sidebar on Mac and iPad (iPad can switch to tabs along the top).
+        .tabViewStyle(.sidebarAdaptable)
         .onChange(of: phase) { _, p in
             // Refresh "today"-based numbers (autopay, safe to spend) when the app comes back.
             if p == .active { store.refresh() }
@@ -112,6 +120,12 @@ struct RootView: View {
     private var billsToPay: Int {
         let u = store.engine.upcoming()
         return u.toPay.count + u.overdue.count
+    }
+
+    /// Spending categories over budget on the current paycheck, for the Purchases badge.
+    private var categoriesOver: Int {
+        guard let c = store.engine.upcoming().cur else { return 0 }
+        return store.engine.lines(c.key, c.n).filter { $0.type == "expense" && !$0.skip && $0.spent > $0.env + 0.004 }.count
     }
 
     /// A tab's icon and name. The icons stay thin outlines (iPhone fills them in by

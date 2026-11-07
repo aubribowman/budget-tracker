@@ -155,6 +155,9 @@ struct PayoffView: View {
                                     else if let r = rank { Tag(text: "\(DU.ordinal(r + 1)) to pay off") }
                                 }
                                 Text(money(b)).font(.display(.title2, weight: .bold)).monospacedDigit().rollingNumber(b)
+                                // Where today's balance comes from, so a payment that did or didn't
+                                // count is easy to spot.
+                                Text(balanceSource(d)).font(.ui(.caption)).foregroundStyle(.secondary)
                                 ProgressBar(value: o > 0 ? 1 - b / o : 0, color: Theme.rosy)
                                 ValueRow {
                                     Text("APR \(String(format: "%.2f", d.apr))%")
@@ -189,6 +192,15 @@ struct PayoffView: View {
 
     func commitExtra() {
         if let v = Double(extraText) { store.update { $0.extra = max(0, v) } }
+    }
+
+    /// "$5,891.73 on Nov 5 · $122.00 paid since": the balance you entered and the payments
+    /// marked paid after it, which together make today's balance.
+    func balanceSource(_ d: Debt) -> String {
+        let paid = store.engine.paidSince(debtId: d.id, asOf: d.asOf, asOfAt: d.asOfAt)
+        let day = DU.parseISO(d.asOf).map { DU.short($0) } ?? d.asOf
+        let base = "\(money(d.balance)) on \(day)"
+        return paid > 0.004 ? "\(base) · \(money(paid)) paid since" : "\(base) · no payments marked since"
     }
 
     /// Slider goes to $1,000, or twice your extra if that's more.

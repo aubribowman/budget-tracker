@@ -39,10 +39,10 @@ Shown with sample data.
 ### Tabs
 
 - **Home**: what's left on this paycheck, your next payday, bills to pay now, spending left, debt, and savings goals. Each card folds to one line. The gear in the top corner opens **Setup**.
-- **Paychecks**: every paycheck in the month with its bills grouped by type. Each item can be not paid, set aside, or paid. Also autopay, moving a bill to another paycheck, skipping a month, one-time items, and pay-ahead. Paychecks and type groups fold.
+- **Paychecks**: every paycheck in the month with its bills grouped by type. Tap an item's circle to mark it paid (the same circle works in **To pay now** on Home and Paychecks), or long-press to set it aside. Every status change shows an **Undo** bar for a few seconds. Also autopay, moving a bill to another paycheck, skipping a month, one-time items, and pay-ahead. Paychecks and type groups fold. One-time items, extra income and **Use savings** are under **Add to this paycheck**.
 - **Purchases**: spending categories stacked with what's left in each, logging purchases, moving them between categories, swipe to delete, and **Import from bank** in the **+** menu.
 - **Month**: what came in and went out, where your pay goes, and over-budget items. The clipboard button opens the **monthly review**.
-- **Payoff**: two sections.
+- **Payoff**: two sections. Each debt shows the balance you entered and the payments marked paid since, so you can see where today's balance comes from.
   - **Debts**: your debt-free date, Avalanche, Snowball, or Pick a debt, the extra payment line on your paychecks, and **credit utilization**.
   - **Student loans**: what each loan grows to before repayment, standard payments, your payment plan, and payoff dates.
 
@@ -56,6 +56,8 @@ Shown with sample data.
 - **Widgets**: small and medium home screen widgets on iPhone and iPad, plus lock screen widgets. They show what's left on your paycheck, bills due, days to payday, spending left, and your top goal.
 - **Reminders**: a notification the day before each unpaid bill is due, and one on payday. Turn on in **Setup → Reminders**.
 - **Face ID lock**: asks for Face ID or your passcode when you come back to the app, and hides balances in the app switcher. Turn on in **Setup → Privacy**.
+- **Badges** on the tabs: Paychecks counts bills to pay now or past due, Purchases counts spending categories that are over, and Month shows a dot while last month's review is waiting.
+- **Sidebar on Mac and iPad**, and a tab bar on iPhone.
 - **Light and dark mode**, with app icons for both.
 - **Accessibility**: layouts adjust for the largest text sizes, and VoiceOver reads each paycheck line as one item with its amount and status.
 - **Privacy**: everything stays on the device and in the sync folder you choose. No accounts, tracking or analytics.

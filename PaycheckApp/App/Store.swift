@@ -17,6 +17,7 @@ final class Store: ObservableObject {
     @Published private(set) var engine: Engine
     @Published var month: String = DU.ym(Date())   // month shown on Paychecks, Purchases and Month
     @Published var lastError: String?               // shown as an alert by RootView
+    @Published var undoNote: UndoNote?              // "Rent marked paid · Undo", shown by RootView
     /// Optional shared folder (like iCloud Drive) that keeps your devices in step.
     let sync = SyncFolder()
 
@@ -158,16 +159,39 @@ final class Store: ObservableObject {
         }
     }
 
-    /// Not paid → set aside → paid → not paid.
-    func cycleStatus(_ line: Line) {
-        let next = line.paid ? "unpaid" : line.aside ? "paid" : "aside"
-        setStatus(line, next)
+    /// What tapping a status circle does everywhere: paid ↔ not paid.
+    /// (Set aside is in the row's long-press menu.)
+    func togglePaid(_ line: Line) {
+        setStatus(line, line.paid ? "unpaid" : "paid")
+    }
+
+    // MARK: Undo
+
+    /// A change that can be taken back for a few seconds, with the budget from before it.
+    struct UndoNote: Identifiable, Equatable {
+        let id = UUID()
+        let text: String
+        let before: BudgetState
+        static func == (a: UndoNote, b: UndoNote) -> Bool { a.id == b.id }
+    }
+
+    /// Puts the budget back the way it was before the change in the note.
+    func undo() {
+        guard let n = undoNote else { return }
+        undoNote = nil
+        update { $0 = n.before }
     }
 
     /// Sets a line to "unpaid", "aside" or "paid". When the extra debt line is marked
     /// paid, it saves which debt and amount it went to, so later changes to the plan
     /// don't rewrite what you already paid.
     func setStatus(_ line: Line, _ status: String) {
+        guard status != line.status else { return }
+        let before = state
+        defer {
+            let did = status == "paid" ? "marked paid" : status == "aside" ? "set aside" : "marked not paid"
+            undoNote = UndoNote(text: "\(line.name) \(did)", before: before)
+        }
         if line.kind == "ex" {
             editCell(line.homeKey, line.home) { c in
                 if let i = c.extras.firstIndex(where: { $0.id == line.id }) {

@@ -104,7 +104,8 @@ private struct PaycheckSummary: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(DU.dayLabel(Date())).font(.ui(.subheadline)).foregroundStyle(.secondary)
+            // Today's date, bold and dark so it stands apart from the gray label below.
+            Text(DU.dayLabel(Date())).font(.display(.headline, weight: .bold)).foregroundStyle(.primary)
             if let c = u.cur {
                 let t = store.engine.totals(c.key, c.n)
                 let left = t.left
@@ -202,6 +203,7 @@ private struct DueCard: View {
                         }
                     } value: {
                         Text(money(l.amount)).monospacedDigit().fontWeight(.semibold).rollingNumber(l.amount)
+                        PayCircle(line: l)
                     }
                 } else if !u.toPay.isEmpty {
                     ValueRow {
@@ -215,6 +217,7 @@ private struct DueCard: View {
                             Text(l.name).font(.ui(.subheadline)).foregroundStyle(.secondary).lineLimit(1)
                         } value: {
                             Text(money(l.amount)).font(.ui(.subheadline)).monospacedDigit().foregroundStyle(.secondary)
+                            PayCircle(line: l)
                         }
                     }
                     if u.toPay.count > 3 {
@@ -432,5 +435,24 @@ private struct ReviewPrompt: View {
             .card()
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// The status circle on Home's "To pay now" rows: tap to mark the bill paid, like on a paycheck.
+private struct PayCircle: View {
+    @EnvironmentObject var store: Store
+    let line: Line
+    var body: some View {
+        // A tap gesture that wins over the card's own tap, so marking it paid doesn't also
+        // open the Paychecks tab.
+        StatusDot(status: line.status)
+            .padding(Space.xs)
+            .contentShape(Rectangle())
+            .highPriorityGesture(TapGesture().onEnded { store.togglePaid(line) })
+            .accessibilityElement()
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { store.togglePaid(line) }
+            .sensoryFeedback(trigger: line.status) { _, new in new == "paid" ? .success : .selection }
+            .accessibilityLabel("Mark \(line.name) paid")
     }
 }

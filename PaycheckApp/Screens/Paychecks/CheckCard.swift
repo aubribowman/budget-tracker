@@ -122,12 +122,20 @@ struct CheckCard: View {
                 }
             }
 
-            // Side by side when they fit, otherwise stacked.
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 20) { addButtons }
-                VStack(alignment: .leading, spacing: Space.s) { addButtons }
+            // One "Add" button with the choices in a menu, instead of a row of buttons.
+            Menu {
+                Button { addingOneTime = true } label: { Label("One-time item", systemImage: "list.bullet") }
+                Button { editingExtra = IncomeItem() } label: { Label("Extra income", systemImage: "plus.circle") }
+                if !store.state.goals.isEmpty {
+                    Button { usingSavings = true } label: { Label("Use savings", systemImage: "arrow.down.circle") }
+                }
+            } label: {
+                Label("Add to this paycheck", systemImage: "plus")
+                    .font(.ui(.subheadline).weight(.semibold))
             }
-            .font(.ui(.subheadline))
+            .menuStyle(.button)
+            .buttonStyle(.borderless)
+            .fixedSize()
             }
         }
         .card()
@@ -142,13 +150,6 @@ struct CheckCard: View {
         .sheet(isPresented: $usingSavings) { UseSavingsSheet(startCheck: check).macSheet() }
     }
 
-    @ViewBuilder private var addButtons: some View {
-        Button { addingOneTime = true } label: { Label("One-time item", systemImage: "plus") }
-        Button { editingExtra = IncomeItem() } label: { Label("Extra income", systemImage: "plus") }
-        if !store.state.goals.isEmpty {
-            Button { usingSavings = true } label: { Label("Use savings", systemImage: "arrow.down.circle") }
-        }
-    }
 }
 
 /// A bar split by type showing where this paycheck goes.
@@ -216,7 +217,7 @@ struct StatusDot: View {
     }
 }
 
-/// One line on a paycheck. Tap the dot to change its status, tap the row for details,
+/// One line on a paycheck. Tap the circle to mark it paid (or not), tap the row for details,
 /// swipe right to mark it paid or left to skip it (iPhone), or long-press (right-click
 /// on Mac) to skip it or move it to another paycheck.
 struct LineRow: View {
@@ -227,15 +228,15 @@ struct LineRow: View {
 
     var body: some View {
         ValueRow(spacing: 12) {
-            Button { store.cycleStatus(line) } label: { StatusDot(status: line.status) }
+            Button { store.togglePaid(line) } label: { StatusDot(status: line.status) }
                 .buttonStyle(.plain)
                 // A tap you can feel: stronger for "paid", lighter for the other steps.
                 .sensoryFeedback(trigger: line.status) { _, new in new == "paid" ? .success : .selection }
                 .disabled(line.skip)
-                .accessibilityLabel("\(line.name), \(line.status == "unpaid" ? "not paid" : line.status). Tap to change.")
+                .accessibilityLabel("\(line.name), \(line.status == "unpaid" ? "not paid" : line.status). Tap to mark \(line.paid ? "not paid" : "paid").")
             // The icon is a circle too, so clicking it does what clicking the status circle does,
             // instead of opening the row's details.
-            Button { store.cycleStatus(line) } label: {
+            Button { store.togglePaid(line) } label: {
                 IconBadge(icon: ItemIcon.of(line, in: store.state), color: TypeInfo.of(line.type).color)
             }
             .buttonStyle(.plain)
@@ -266,7 +267,7 @@ struct LineRow: View {
         .accessibilityValue(spokenValue)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { editing = true }
-        .accessibilityAction(named: "Change status") { store.cycleStatus(line) }
+        .accessibilityAction(named: line.paid ? "Mark not paid" : "Mark paid") { store.togglePaid(line) }
         // Swipe right to mark paid (or not paid), left to skip this month.
         .swipeRow(
             leading: line.skip ? nil : SwipeAction(label: line.paid ? "Mark not paid" : "Mark paid",
@@ -315,6 +316,12 @@ struct LineRow: View {
 
     @ViewBuilder var menuItems: some View {
         Button("Edit") { editing = true }
+        if !line.skip {
+            Button(line.paid ? "Mark not paid" : "Mark paid") { store.togglePaid(line) }
+            if !line.paid {
+                Button(line.aside ? "Not set aside" : "Set aside") { store.setStatus(line, line.aside ? "unpaid" : "aside") }
+            }
+        }
         if line.kind == "rec" {
             Button(line.skip ? "Restore" : "Skip this month") { store.toggleSkip(line) }
             if !line.each {
