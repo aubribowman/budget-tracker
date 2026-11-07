@@ -109,7 +109,7 @@ Running from Xcode doesn't update the copy in Applications or the Dock. To build
 ./scripts/install-mac.sh
 ```
 
-It quits the app if it's open, moves the old copy to the Trash, installs the new one, and opens it. Your budget isn't touched. Run it again whenever you change the code.
+It quits the app if it's open, moves the old copy to the Trash, installs the new one, and opens it. Your budget isn't touched. Run it again whenever you change the code. If it says the app didn't quit, a sheet or dialog is probably open in it: close it, or run the script with `--force`.
 
 ## Move your data over
 

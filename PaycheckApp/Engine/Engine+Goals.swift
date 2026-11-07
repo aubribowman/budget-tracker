@@ -18,12 +18,14 @@ struct GoalStatus {
 }
 
 extension Engine {
-    /// Savings lines linked to this goal and marked paid after `asOf`.
-    func savedSince(goalId: String, asOf: String) -> Double {
+    /// Savings lines linked to this goal and marked paid after its balance was entered
+    /// (see `countsAfter`).
+    func savedSince(goalId: String, asOf: String, asOfAt: String? = nil) -> Double {
         var sum = 0.0
         for key in Array(Set(s.months.keys).union(recentMonths(from: asOf))) {
-            for c in checksIn(key) where DU.iso(c.date) > asOf {
-                for l in lines(key, c.n) where !l.skip && l.paid && l.goalId == goalId { sum += l.amount }
+            for c in checksIn(key) {
+                for l in lines(key, c.n) where !l.skip && l.paid && l.goalId == goalId
+                    && countsAfter(l, payday: c.date, asOf: asOf, asOfAt: asOfAt) { sum += l.amount }
             }
         }
         return sum
@@ -39,7 +41,7 @@ extension Engine {
 
     /// Saved so far, the planned pace, when you'll reach it, and what it takes to hit the due date.
     func goalStatus(_ g: Goal) -> GoalStatus {
-        let saved = g.balance + savedSince(goalId: g.id, asOf: g.asOf)
+        let saved = g.balance + savedSince(goalId: g.id, asOf: g.asOf, asOfAt: g.asOfAt)
         let per = plannedPerMonth(goalId: g.id)
         var st = GoalStatus(saved: saved, target: g.target, perMonth: per)
         let now = DU.ym(Date())

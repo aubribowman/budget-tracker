@@ -171,6 +171,8 @@ final class Store: ObservableObject {
         if line.kind == "ex" {
             editCell(line.homeKey, line.home) { c in
                 if let i = c.extras.firstIndex(where: { $0.id == line.id }) {
+                    if status == "paid" { if !c.extras[i].paid { c.extras[i].paidAt = DU.stamp() } }
+                    else { c.extras[i].paidAt = nil }
                     c.extras[i].paid = status == "paid"
                     c.extras[i].aside = status == "aside"
                 }
@@ -180,6 +182,7 @@ final class Store: ObservableObject {
         let focus = engine.focusDebtId()
         let extraAmt = engine.perCheckExtra(line.homeKey)
         editOverride(line) { o in
+            if status == "paid" { if o.paid != true { o.paidAt = DU.stamp() } } else { o.paidAt = nil }
             o.paid = status == "paid"
             o.aside = status == "aside"
             if line.isExtraLine {
@@ -211,7 +214,7 @@ final class Store: ObservableObject {
         editOverride(line) { o in
             let s = !(o.skip ?? false)
             o.skip = s
-            if s { o.paid = false; o.aside = false }
+            if s { o.paid = false; o.aside = false; o.paidAt = nil }
         }
     }
 
@@ -393,7 +396,7 @@ final class Store: ObservableObject {
         update { s in
             for i in s.debts.indices {
                 guard let a = debts[s.debts[i].id], a > 0.004 else { continue }
-                s.debts[i].balance = max(0, r2(e.curBal(s.debts[i]) - a)); s.debts[i].asOf = today
+                s.debts[i].balance = max(0, r2(e.curBal(s.debts[i]) - a)); s.debts[i].asOf = today; s.debts[i].asOfAt = DU.stamp()
             }
             for i in s.loans.indices {
                 guard let a = loans[s.loans[i].id], a > 0.004 else { continue }
@@ -401,7 +404,7 @@ final class Store: ObservableObject {
             }
             for i in s.goals.indices {
                 guard let a = goals[s.goals[i].id], a > 0.004 else { continue }
-                s.goals[i].balance = r2(e.goalStatus(s.goals[i]).saved + a); s.goals[i].asOf = today
+                s.goals[i].balance = r2(e.goalStatus(s.goals[i]).saved + a); s.goals[i].asOf = today; s.goals[i].asOfAt = DU.stamp()
             }
         }
     }

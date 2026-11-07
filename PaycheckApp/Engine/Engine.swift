@@ -65,6 +65,7 @@ struct Line: Identifiable {
     var moved: Bool = false   // shown here but moved from another paycheck
     var homeDate: Date? = nil // payday of the paycheck it moved from
     var isExtraLine: Bool = false
+    var paidAt: String? = nil // when it was marked paid (DU.stamp), if known
 
     var status: String { paid ? "paid" : aside ? "aside" : "unpaid" }
     /// Unique per occurrence (the same bill can appear in several paychecks).
@@ -255,7 +256,7 @@ final class Engine {
                     paid: paid, auto: auto, aside: !paid && o.aside == true, autopay: r.autopay,
                     skip: o.skip == true, debtId: r.debtId, goalId: r.goalId, every: r.every,
                     each: r.when == "each", meta: meta, sortKey: sortKey, home: home, homeKey: homeKey,
-                    dueDate: dueDate, isExtraLine: r.extraLine)
+                    dueDate: dueDate, isExtraLine: r.extraLine, paidAt: paid ? o.paidAt : nil)
     }
 
     /// Recurring items that belong on this paycheck before any are moved elsewhere.
@@ -336,7 +337,8 @@ final class Engine {
                 .flatMap { g in s.goals.first { $0.id == g }?.name }
             return Line(kind: "ex", id: e.id, name: e.name, type: e.type, budget: e.amount, env: e.amount, amount: e.amount,
                         paid: e.paid, aside: !e.paid && e.aside == true, debtId: e.debtId ?? "", goalId: e.goalId ?? "",
-                        meta: goal.map { "Paid from \($0)" } ?? "One-time", home: n, homeKey: key)
+                        meta: goal.map { "Paid from \($0)" } ?? "One-time", home: n, homeKey: key,
+                        paidAt: e.paid ? e.paidAt : nil)
         }
         let out = rec + ex
         if !inFocus { lineCache[ck] = out }
@@ -394,21 +396,37 @@ final class Engine {
         return Array(keys)
     }
 
-    /// Debt payments for this debt marked paid on paychecks after `asOf`.
-    func paidSince(debtId: String, asOf: String) -> Double {
+    /// Debt payments for this debt marked paid after its balance was entered.
+    func paidSince(debtId: String, asOf: String, asOfAt: String? = nil) -> Double {
         var sum = 0.0
         for key in monthsToScan(asOf) {
-            for c in checksIn(key) where DU.iso(c.date) > asOf {
-                for l in lines(key, c.n) where !l.skip && l.paid && l.type == "debt" && l.debtId == debtId { sum += l.amount }
+            for c in checksIn(key) {
+                for l in lines(key, c.n) where !l.skip && l.paid && l.type == "debt" && l.debtId == debtId
+                    && countsAfter(l, payday: c.date, asOf: asOf, asOfAt: asOfAt) { sum += l.amount }
             }
         }
         return sum
     }
 
+    /// Whether a paid line came after a balance entered on `asOf` (at `asOfAt`, if known),
+    /// so it should change that balance.
+    /// - Marked paid by hand: counts if it was marked after the balance was entered, whatever
+    ///   the paycheck's date. A balance entered on payday still counts that day's payments.
+    /// - Autopay: counts if it came due after the balance's date.
+    /// - Older data with no times saved: counts if its paycheck is after the balance's date.
+    func countsAfter(_ l: Line, payday: Date, asOf: String, asOfAt: String?) -> Bool {
+        if l.auto, let d = l.dueDate { return DU.iso(d) > asOf }
+        if let at = l.paidAt {
+            if let base = asOfAt { return at > base }
+            return String(at.prefix(10)) > asOf || DU.iso(payday) > asOf
+        }
+        return DU.iso(payday) > asOf
+    }
+
     /// Today's balance: the entered balance minus payments marked paid since.
     func curBal(_ d: Debt) -> Double {
         if !inFocus, let v = balCache[d.id] { return v }
-        let v = max(0, d.balance - paidSince(debtId: d.id, asOf: d.asOf))
+        let v = max(0, d.balance - paidSince(debtId: d.id, asOf: d.asOf, asOfAt: d.asOfAt))
         if !inFocus { balCache[d.id] = v }
         return v
     }

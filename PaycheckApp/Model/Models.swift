@@ -157,6 +157,7 @@ struct Override: Codable, Equatable {
     var debtId: String? = nil             // extra line: which debt this paycheck's extra went to
     var debtLocked: Bool? = nil           // extra line: keep debtId even if the focus debt changes
     var tx: String? = nil                 // bank transaction id that marked it paid (see Store+Import)
+    var paidAt: String? = nil             // when it was marked paid (DU.stamp); app only, not in the web app
 
     init() {}
 
@@ -170,6 +171,7 @@ struct Override: Codable, Equatable {
         debtId = c.str(.debtId)
         debtLocked = c.bool(.debtLocked)
         tx = c.str(.tx)
+        paidAt = c.str(.paidAt)
     }
 }
 
@@ -184,6 +186,7 @@ struct OneTime: Codable, Identifiable, Equatable {
     var debtId: String? = nil
     var goalId: String? = nil
     var tx: String? = nil
+    var paidAt: String? = nil             // when it was marked paid (DU.stamp); app only
     var useId: String? = nil              // paid for with savings: the IncomeItem it was taken in as (see BudgetState+Savings)
 
     init() {}
@@ -199,6 +202,7 @@ struct OneTime: Codable, Identifiable, Equatable {
         debtId = c.str(.debtId)
         goalId = c.str(.goalId)
         tx = c.str(.tx)
+        paidAt = c.str(.paidAt)
         useId = c.str(.useId)
     }
 }
@@ -279,7 +283,7 @@ struct Cell: Codable, Equatable {
 // MARK: - Debts, goals, student loans
 
 /// A credit card or personal loan. The balance is a snapshot: the current balance is
-/// `balance` minus debt payments marked paid after `asOf` (see `Engine.curBal`).
+/// `balance` minus debt payments marked paid after it was entered (see `Engine.curBal`).
 struct Debt: Codable, Identifiable, Equatable {
     var id: String = "d" + UUID().uuidString.prefix(7).lowercased()
     var name: String = "New debt"
@@ -288,6 +292,7 @@ struct Debt: Codable, Identifiable, Equatable {
     var apr: Double = 0                   // percent, e.g. 24.99
     var min: Double = 0                   // monthly minimum payment
     var asOf: String = DU.iso(Date())     // yyyy-MM-dd
+    var asOfAt: String? = nil             // when the balance was entered (DU.stamp); app only
     var limit: Double? = nil              // credit limit, for utilization
 
     init() {}
@@ -301,6 +306,7 @@ struct Debt: Codable, Identifiable, Equatable {
         apr = c.dbl(.apr) ?? 0
         min = c.dbl(.min) ?? 0
         asOf = c.str(.asOf) ?? DU.iso(Date())
+        asOfAt = c.str(.asOfAt)
         limit = c.dbl(.limit)
     }
 }
@@ -314,6 +320,7 @@ struct Goal: Codable, Identifiable, Equatable {
     var target: Double = 0
     var balance: Double = 0
     var asOf: String = DU.iso(Date())
+    var asOfAt: String? = nil             // when the balance was entered (DU.stamp); app only
     var due: String = ""                  // optional target date, yyyy-MM-dd
 
     init() {}
@@ -326,6 +333,7 @@ struct Goal: Codable, Identifiable, Equatable {
         target = c.dbl(.target) ?? 0
         balance = c.dbl(.balance) ?? 0
         asOf = c.str(.asOf) ?? DU.iso(Date())
+        asOfAt = c.str(.asOfAt)
         due = c.str(.due) ?? ""
     }
 }

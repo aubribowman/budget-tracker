@@ -32,6 +32,13 @@ enum DU {
         let c = cal.dateComponents([.year, .month, .day], from: d)
         return String(format: "%04d-%02d-%02d", c.year ?? 2026, c.month ?? 1, c.day ?? 1)
     }
+    /// "yyyy-MM-ddTHH:mm:ss" in local time: when something happened, for telling apart
+    /// things done on the same day. Starts with `iso(d)`, so it sorts and compares with it.
+    static func stamp(_ d: Date = Date()) -> String {
+        let c = cal.dateComponents([.year, .month, .day, .hour, .minute, .second], from: d)
+        return String(format: "%04d-%02d-%02dT%02d:%02d:%02d", c.year ?? 2026, c.month ?? 1, c.day ?? 1,
+                      c.hour ?? 0, c.minute ?? 0, c.second ?? 0)
+    }
     /// Reads "yyyy-MM-dd" (anything after the first 10 characters is ignored).
     static func parseISO(_ s: String) -> Date? {
         let p = s.prefix(10).split(separator: "-").compactMap { Int($0) }

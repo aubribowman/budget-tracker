@@ -379,3 +379,66 @@ struct UseSavingsTests {
         #expect(c.extras.first?.useId == c.addIncome.first?.id)
     }
 }
+
+/// Which payments lower a debt (or add to a goal): ones marked paid after its balance was entered.
+@MainActor
+struct BalanceSinceTests {
+    /// A $1,000 card entered on payday (Apr 15, 2027) at 10:00, with its $50 minimum due the 20th.
+    func budget() -> BudgetState {
+        var card = item("Card minimum", 50, type: "debt", due: "20")
+        var d = Debt(); d.name = "Card"; d.balance = 1000; d.min = 50; d.asOf = "2027-04-15"; d.asOfAt = "2027-04-15T10:00:00"
+        card.debtId = d.id
+        var s = semiBudget([card])
+        s.debts = [d]
+        return s
+    }
+
+    func markPaid(_ s: inout BudgetState, n: Int = 1, at: String?) {
+        var o = Override(); o.paid = true; o.paidAt = at
+        var m = s.months["2027-04"] ?? [:]
+        var c = m[String(n)] ?? Cell()
+        c.ov[s.recurring[0].id] = o
+        m[String(n)] = c
+        s.months["2027-04"] = m
+    }
+
+    @Test func paymentMarkedAfterTheBalanceCountsOnTheSameDay() {
+        var s = budget()
+        markPaid(&s, at: "2027-04-15T12:00:00")
+        #expect(Engine(s).curBal(s.debts[0]) == 950)
+    }
+
+    @Test func paymentMarkedAfterTheBalanceCountsOnAnEarlierPaycheck() {
+        var s = budget()
+        s.debts[0].asOf = "2027-04-16"; s.debts[0].asOfAt = "2027-04-16T08:00:00"
+        markPaid(&s, at: "2027-04-17T09:00:00")
+        #expect(Engine(s).curBal(s.debts[0]) == 950)
+    }
+
+    @Test func paymentMarkedBeforeTheBalanceIsAlreadyInIt() {
+        var s = budget()
+        markPaid(&s, at: "2027-04-15T09:00:00")
+        #expect(Engine(s).curBal(s.debts[0]) == 1000)
+    }
+
+    @Test func olderDataWithoutTimesUsesThePaycheckDate() {
+        var s = budget()
+        s.debts[0].asOfAt = nil
+        markPaid(&s, at: nil)
+        // Paycheck on the balance's date: already counted in it.
+        #expect(Engine(s).curBal(s.debts[0]) == 1000)
+        // Marked paid on a later day than the balance: counts.
+        markPaid(&s, at: "2027-04-16T09:00:00")
+        #expect(Engine(s).curBal(s.debts[0]) == 950)
+    }
+
+    @Test func goalsUseTheSameRule() {
+        var save = item("Save", 100, type: "savings", due: "20")
+        var g = Goal(); g.name = "Trip"; g.target = 1000; g.balance = 200; g.asOf = "2027-04-15"; g.asOfAt = "2027-04-15T10:00:00"
+        save.goalId = g.id
+        var s = semiBudget([save])
+        s.goals = [g]
+        markPaid(&s, at: "2027-04-15T11:00:00")
+        #expect(Engine(s).goalStatus(s.goals[0]).saved == 300)
+    }
+}

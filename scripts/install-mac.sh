@@ -4,9 +4,18 @@
 #
 #   ./scripts/install-mac.sh
 #
+# If PaycheckApp is open with a sheet or dialog showing, it won't quit. Close it, or add
+# --force to quit it anyway (your budget is saved after every change, so only what's typed
+# into an open sheet is lost):
+#
+#   ./scripts/install-mac.sh --force
+#
 # Your budget isn't touched: it's saved separately from the app.
 
 set -euo pipefail
+
+FORCE=0
+[ "${1:-}" = "--force" ] && FORCE=1
 
 DEST="/Applications/PaycheckApp.app"
 
@@ -31,13 +40,22 @@ APP_ID="$(defaults read "$BUILT/Contents/Info" CFBundleIdentifier)"
 # Quit the app if it's open, so it can be replaced.
 if pgrep -f "$DEST/Contents/MacOS/" > /dev/null; then
     echo "Quitting PaycheckApp..."
-    osascript -e "tell application id \"$APP_ID\" to quit" || true
+    osascript -e "tell application id \"$APP_ID\" to quit" > /dev/null 2>&1 || true
     for _ in $(seq 1 20); do
         pgrep -f "$DEST/Contents/MacOS/" > /dev/null || break
         sleep 0.5
     done
+    if pgrep -f "$DEST/Contents/MacOS/" > /dev/null && [ "$FORCE" = 1 ]; then
+        pkill -TERM -f "$DEST/Contents/MacOS/" || true
+        for _ in $(seq 1 10); do
+            pgrep -f "$DEST/Contents/MacOS/" > /dev/null || break
+            sleep 0.5
+        done
+    fi
     if pgrep -f "$DEST/Contents/MacOS/" > /dev/null; then
-        echo "PaycheckApp didn't quit. Quit it yourself, then run this again."
+        echo "PaycheckApp didn't quit. It usually means a sheet or dialog is open in it."
+        echo "Close it and run this again, or run it with --force to quit the app anyway:"
+        echo "  $0 --force"
         exit 1
     fi
 fi

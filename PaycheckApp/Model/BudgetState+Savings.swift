@@ -30,6 +30,7 @@ extension BudgetState {
         spend.type = type
         spend.amount = a
         spend.paid = true
+        spend.paidAt = DU.stamp()
         spend.useId = income.id
 
         var m = months[key] ?? [:]

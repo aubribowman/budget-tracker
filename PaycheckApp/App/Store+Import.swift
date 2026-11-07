@@ -142,6 +142,7 @@ extension Store {
                     edit(l.homeKey, l.home) { c in
                         var o = c.ov[l.id] ?? Override()
                         o.paid = true
+                        o.paidAt = DU.stamp()
                         o.aside = false
                         o.tx = t.id
                         // Keep the real amount when it differs from the usual one (like a utility bill).

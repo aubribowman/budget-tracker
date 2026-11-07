@@ -55,7 +55,7 @@ struct DebtEditSheet: View {
     func save() {
         var d = debt
         let nb = Double(balance) ?? d.balance
-        if abs(nb - d.balance) > 0.004 || isNew { d.balance = nb; d.asOf = DU.iso(Date()) }
+        if abs(nb - d.balance) > 0.004 || isNew { d.balance = nb; d.asOf = DU.iso(Date()); d.asOfAt = DU.stamp() }
         d.apr = Double(apr) ?? d.apr
         d.min = Double(minPay) ?? d.min
         d.original = Double(original) ?? d.original

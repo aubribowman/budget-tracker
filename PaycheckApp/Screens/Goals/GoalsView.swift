@@ -184,6 +184,7 @@ struct GoalEditSheet: View {
         if isNew || abs(newSaved - startSaved) >= 0.005 {
             g.balance = newSaved
             g.asOf = DU.iso(DU.today)
+            g.asOfAt = DU.stamp()
         }
         g.due = hasDue ? DU.iso(due) : ""
         store.saveGoal(g)
