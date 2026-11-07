@@ -74,19 +74,21 @@ struct RootView: View {
     private var tabs: some View {
         TabView(selection: $tab) {
             HomeView(tab: $tab)
-                .tabItem { Label("Home", systemImage: "house") }
+                .tabItem { tabLabel("Home", "house") }
                 .tag(AppTab.home)
             PaychecksView()
-                .tabItem { Label("Paychecks", systemImage: "dollarsign.circle") }
+                .tabItem { tabLabel("Paychecks", "dollarsign.circle") }
+                // A red count of bills to pay now or past due, like an unread count.
+                .badge(billsToPay)
                 .tag(AppTab.paychecks)
             PurchasesView()
-                .tabItem { Label("Purchases", systemImage: "cart") }
+                .tabItem { tabLabel("Purchases", "cart") }
                 .tag(AppTab.purchases)
             MonthView()
-                .tabItem { Label("Month", systemImage: "chart.pie") }
+                .tabItem { tabLabel("Month", "chart.pie") }
                 .tag(AppTab.month)
             PayoffView()
-                .tabItem { Label("Payoff", systemImage: "flag.checkered") }
+                .tabItem { tabLabel("Payoff", "flag.checkered") }
                 .tag(AppTab.debt)
         }
         .onChange(of: phase) { _, p in
@@ -104,5 +106,17 @@ struct RootView: View {
         .alert("Something went wrong", isPresented: Binding(get: { store.lastError != nil }, set: { if !$0 { store.lastError = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(store.lastError ?? "") }
+    }
+
+    /// Bills to pay from the current paycheck, plus any past due, for the Paychecks badge.
+    private var billsToPay: Int {
+        let u = store.engine.upcoming()
+        return u.toPay.count + u.overdue.count
+    }
+
+    /// A tab's icon and name. The icons stay thin outlines (iPhone fills them in by
+    /// default), so the tab bar looks light and the badge stands out.
+    private func tabLabel(_ title: String, _ icon: String) -> some View {
+        Label(title, systemImage: icon).environment(\.symbolVariants, .none)
     }
 }
