@@ -14,6 +14,7 @@ struct SyncSection: View {
     var body: some View {
         Section {
             if sync.isOn {
+                // Connected: the folder, its status, and ways to change or stop.
                 LabeledContent("Syncing with", value: sync.folderName ?? "Folder")
                 if let p = sync.problem {
                     Label(p, systemImage: "exclamationmark.triangle.fill").font(.ui(.footnote)).foregroundStyle(Theme.bad)
@@ -24,6 +25,7 @@ struct SyncSection: View {
                 Button { choose() } label: { Label("Change folder", systemImage: "folder") }
                 Button(role: .destructive) { sync.disconnect() } label: { Label("Stop syncing", systemImage: "xmark.circle") }
             } else {
+                // Not connected yet.
                 Button { choose() } label: { Label("Choose a sync folder", systemImage: "arrow.triangle.2.circlepath") }
             }
         } header: { Text("Sync between devices") } footer: {
@@ -31,6 +33,8 @@ struct SyncSection: View {
                  ? "Changes are shared through this folder. Pick the same folder on your other devices. If both change before they sync, the most recent save wins."
                  : "Keep your iPhone and Mac in step. Make a folder in iCloud Drive (like “Paycheck Plan”) and choose it here and on your other devices.")
         }
+        // The picked folder already has a budget (from another device): keep that one,
+        // overwrite it with this device's, or cancel and stay unconnected.
         .confirmationDialog("There’s already a budget in this folder", isPresented: Binding(get: { found != nil }, set: { if !$0 { found = nil } }),
                             titleVisibility: .visible) {
             if let f = found {

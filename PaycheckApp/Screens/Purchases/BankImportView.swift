@@ -6,30 +6,33 @@ struct BankImportView: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
 
+    /// One transaction on the review list.
     struct Row: Identifiable {
         let tx: BankTx
-        var target: ImportTarget
-        let suggested: ImportTarget
-        let fromRule: Bool
-        var remember: Bool
+        var target: ImportTarget      // where it goes: skip, a spending category, or a bill to mark paid
+        let suggested: ImportTarget   // the app's first guess, to tell when the user changed it
+        let fromRule: Bool            // the guess came from a rule the user saved earlier
+        var remember: Bool            // save a rule for this store when importing
         var id: String { tx.id }
     }
 
     @State private var choosing = false
     @State private var fileText: String?
     @State private var fileName = ""
-    @State private var flip = false
-    @State private var rows: [Row] = []
-    @State private var skippedDupes = 0
+    @State private var flip = false            // the bank lists purchases as positive numbers
+    @State private var rows: [Row] = []        // the review list; empty until a file is read
+    @State private var skippedDupes = 0        // rows already imported before
     @State private var error: String?
-    @State private var result: (added: Int, problems: [String])?
+    @State private var result: (added: Int, problems: [String])?   // shown in the "Import finished" alert
 
+    // What a transaction can go to: a spending category, or a bill to mark paid.
     var spending: [Recurring] { store.state.recurring.filter { $0.type == "expense" } }
     var bills: [Recurring] { store.state.recurring.filter { $0.type != "expense" && !$0.extraLine } }
     var picked: Int { rows.filter { $0.target != .skip }.count }
 
     var body: some View {
         NavigationStack {
+            // Two steps: pick a file (intro), then check each transaction (review).
             Group {
                 if rows.isEmpty { intro } else { review }
             }
@@ -60,6 +63,7 @@ struct BankImportView: View {
 
     // MARK: Step 1
 
+    /// What the import does, a button to pick the file, and any error reading it.
     var intro: some View {
         ScrollView {
             VStack(spacing: 16) {
@@ -97,6 +101,8 @@ struct BankImportView: View {
 
     // MARK: Step 2
 
+    /// The file's new transactions, split into money out and money in, each with a
+    /// menu for where it goes. Rows are passed by index so their pickers edit `rows` directly.
     var review: some View {
         let out = rows.indices.filter { rows[$0].tx.isOutflow }
         let inn = rows.indices.filter { !rows[$0].tx.isOutflow }
@@ -124,6 +130,7 @@ struct BankImportView: View {
         }
     }
 
+    /// A transaction with its date, amount, and a menu to pick where it goes.
     func row(_ r: Binding<Row>) -> some View {
         let t = r.wrappedValue.tx
         return VStack(alignment: .leading, spacing: 6) {
@@ -171,6 +178,7 @@ struct BankImportView: View {
         .padding(.vertical, 2)
     }
 
+    /// The store name as shown in "Always do this for Kroger".
     func merchantLabel(_ desc: String) -> String {
         let k = BankCSV.merchantKey(desc)
         return k.isEmpty ? "this store" : k.capitalized
@@ -178,6 +186,7 @@ struct BankImportView: View {
 
     // MARK: Actions
 
+    /// Reads the file the user picked. Files from the Files app need security-scoped access.
     func load(_ url: URL) {
         let ok = url.startAccessingSecurityScopedResource()
         defer { if ok { url.stopAccessingSecurityScopedResource() } }
@@ -188,6 +197,8 @@ struct BankImportView: View {
         reparse()
     }
 
+    /// Builds the review list from the file text: drops rows already imported and
+    /// fills in each row's suggested place. Runs again when "flip signs" changes.
     func reparse() {
         guard let text = fileText else { return }
         do {
@@ -205,6 +216,7 @@ struct BankImportView: View {
         }
     }
 
+    /// Adds the picked transactions to their paychecks and saves any rules (Store.applyImport).
     func runImport() {
         // Skipped rows are only saved when they set a rule, so unpicked rows can be imported later.
         let picks = rows.filter { $0.target != .skip || $0.remember }.map { (tx: $0.tx, target: $0.target, remember: $0.remember) }

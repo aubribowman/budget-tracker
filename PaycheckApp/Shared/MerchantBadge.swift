@@ -29,6 +29,7 @@ struct Merchant {
     let key: String       // "kroger", from "KROGER #456 DUBLIN OH" or "Kroger"
     let letter: String    // "K"
 
+    /// Nil when the name is empty or has no letters or numbers, so the badge shows the category icon.
     init?(_ note: String) {
         let name = Merchant.clean(note)
         guard let first = name.split(separator: " ").first, let ch = first.first else { return nil }

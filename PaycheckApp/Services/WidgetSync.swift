@@ -9,6 +9,7 @@ enum WidgetSync {
     /// BUNDLE_ID_PREFIX in the project, so changing that one setting changes this too.
     static let groupId = "group." + (Bundle.main.bundleIdentifier ?? "com.aubribowman.PaycheckApp")
 
+    /// The file the widget reads. Same fields as WidgetSummary in the widget.
     private struct Summary: Codable {
         var updated: Date
         var left: Double

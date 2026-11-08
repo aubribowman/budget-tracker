@@ -25,6 +25,7 @@ struct WidgetSummary: Codable {
     }()
     static let fileName = "widget.json"
 
+    /// Reads the summary the app last wrote. Nil until the app has run once.
     static func load() -> WidgetSummary? {
         guard let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupId),
               let data = try? Data(contentsOf: dir.appendingPathComponent(fileName)) else { return nil }
@@ -32,21 +33,28 @@ struct WidgetSummary: Codable {
         return try? dec.decode(WidgetSummary.self, from: data)
     }
 
+    /// Made-up numbers for the widget gallery and previews, so your real budget never shows there.
     static let sample = WidgetSummary(updated: .now, left: 612.40, paycheckDate: .now, nextPayday: Calendar.current.date(byAdding: .day, value: 6, to: .now),
                                       billsDue: 2, billsDueAmount: 385, pastDue: 0, spendingLeft: 157.45, spendingBudget: 415,
                                       goalName: "Emergency fund", goalSaved: 1950, goalTarget: 5000)
 }
 
+/// What the widget shows at one point in time. `summary` is nil before the app has run.
 struct Entry: TimelineEntry {
     let date: Date
     let summary: WidgetSummary?
 }
 
+/// Tells iOS what to show and when to refresh. The widget can't read the budget itself,
+/// only the summary file the app writes.
 struct Provider: TimelineProvider {
+    /// Shown blurred while the widget first loads.
     func placeholder(in context: Context) -> Entry { Entry(date: .now, summary: .sample) }
+    /// One entry for right now. The widget gallery gets sample numbers.
     func getSnapshot(in context: Context, completion: @escaping (Entry) -> Void) {
         completion(Entry(date: .now, summary: context.isPreview ? .sample : (WidgetSummary.load() ?? .sample)))
     }
+    /// What to show now and when iOS should ask again.
     func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> Void) {
         // The app asks for a refresh whenever your budget changes. Refresh after
         // midnight too, so "in 3 days" counts down.
@@ -57,20 +65,25 @@ struct Provider: TimelineProvider {
 
 // MARK: - Look
 
+// The app's colors, copied here because the widget is a separate target and can't use Theme.
 private let green = Color(red: 10 / 255, green: 51 / 255, blue: 35 / 255)
 private let moss = Color(red: 131 / 255, green: 153 / 255, blue: 88 / 255)
 private let rosy = Color(red: 211 / 255, green: 150 / 255, blue: 140 / 255)
 
+/// "$612.40", or "$612" with `cents: false` for tight spaces.
 private func money(_ v: Double, cents: Bool = true) -> String {
     v.formatted(.currency(code: "USD").precision(.fractionLength(cents ? 2 : 0)))
 }
 
+/// "today", "tomorrow" or "in 3 days".
 private func daysAway(_ d: Date?) -> String {
     guard let d else { return "" }
     let n = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: .now), to: Calendar.current.startOfDay(for: d)).day ?? 0
     return n <= 0 ? "today" : n == 1 ? "tomorrow" : "in \(n) days"
 }
 
+/// Picks a layout for each widget size: small and medium on the home screen, and
+/// rectangular, circular and inline on the lock screen.
 struct PaycheckWidgetView: View {
     @Environment(\.widgetFamily) var family
     let entry: Entry
@@ -92,6 +105,7 @@ struct PaycheckWidgetView: View {
         }
     }
 
+    /// Home screen, small: what's left, bills due (or "All caught up") and the next payday.
     func small(_ s: WidgetSummary) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Left on paycheck").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
@@ -112,6 +126,7 @@ struct PaycheckWidgetView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
+    /// Home screen, medium: the small layout plus spending left and a goal as bars.
     func medium(_ s: WidgetSummary) -> some View {
         HStack(alignment: .top, spacing: 14) {
             small(s)
@@ -127,6 +142,7 @@ struct PaycheckWidgetView: View {
         }
     }
 
+    /// A label, a value and a thin progress bar filled to `p` (0 to 1).
     func bar(_ label: String, _ value: String, _ p: Double, _ c: Color) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(label).font(.caption2.weight(.semibold)).foregroundStyle(.secondary).lineLimit(1)
@@ -135,6 +151,7 @@ struct PaycheckWidgetView: View {
         }
     }
 
+    /// Lock screen, rectangular: what's left, bills due or past due, and payday.
     func lockRect(_ s: WidgetSummary) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text("\(money(s.left)) left").font(.headline).widgetAccentable()
@@ -143,6 +160,7 @@ struct PaycheckWidgetView: View {
         }
     }
 
+    /// Lock screen, circular: spending left as a gauge.
     func lockCircle(_ s: WidgetSummary) -> some View {
         Gauge(value: max(0, min(1, s.spendingBudget > 0 ? s.spendingLeft / s.spendingBudget : 0))) {
             Image(systemName: "cart")
@@ -153,6 +171,7 @@ struct PaycheckWidgetView: View {
     }
 }
 
+/// The widget's name and description in the widget gallery, and the sizes it comes in.
 struct PaycheckWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "PaycheckWidget", provider: Provider()) { entry in

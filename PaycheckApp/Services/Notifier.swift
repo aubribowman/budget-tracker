@@ -11,6 +11,7 @@ enum Notifier {
     static var enabled: Bool { UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? false }
     static var hour: Int { UserDefaults.standard.object(forKey: hourKey) as? Int ?? 9 }
 
+    /// Shows the system's "Allow notifications?" prompt the first time. True if allowed.
     static func requestPermission() async -> Bool {
         let c = UNUserNotificationCenter.current()
         return (try? await c.requestAuthorization(options: [.alert, .sound, .badge])) ?? false

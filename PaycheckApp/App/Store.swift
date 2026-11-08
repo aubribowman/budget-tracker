@@ -172,6 +172,7 @@ final class Store: ObservableObject {
         let id = UUID()
         let text: String
         let before: BudgetState
+        // Two notes are the same if they're the same change (comparing budgets would be slow).
         static func == (a: UndoNote, b: UndoNote) -> Bool { a.id == b.id }
     }
 
@@ -263,6 +264,7 @@ final class Store: ObservableObject {
         editCell(line.homeKey, line.home) { c in c.extras.removeAll { $0.id == line.id } }
     }
 
+    /// Adds a one-time item (a gift, a repair) to one paycheck only.
     func addOneTime(key: String, n: Int, name: String, type: String, amount: Double) {
         editCell(key, n) { c in
             var x = OneTime(); x.name = name; x.type = type; x.amount = amount
@@ -329,10 +331,13 @@ final class Store: ObservableObject {
         return nil
     }
 
+    /// Purchases are stored on a paycheck under their category's id (`recId`), so both
+    /// are needed to find one.
     func deletePurchase(key: String, n: Int, recId: String, buyId: String) {
         editCell(key, n) { c in c.buys[recId]?.removeAll { $0.id == buyId } }
     }
 
+    /// Moves a purchase to another spending category on the same paycheck.
     func movePurchase(key: String, n: Int, from: String, to: String, buyId: String) {
         editCell(key, n) { c in
             guard var src = c.buys[from], let i = src.firstIndex(where: { $0.id == buyId }) else { return }
@@ -352,13 +357,17 @@ final class Store: ObservableObject {
             if let i = s.recurring.firstIndex(where: { $0.id == r.id }) { s.recurring[i] = r } else { s.recurring.append(r) }
         }
     }
+    /// Removes a recurring item. Its past paid/aside marks on paychecks stay in the file
+    /// but no longer show, since there's no item for them to belong to.
     func deleteRecurring(_ id: String) { update { $0.recurring.removeAll { $0.id == id } } }
 
+    /// Adds or updates a card or personal loan.
     func saveDebt(_ d: Debt) {
         update { s in
             if let i = s.debts.firstIndex(where: { $0.id == d.id }) { s.debts[i] = d } else { s.debts.append(d) }
         }
     }
+    /// Removes a debt and unlinks any debt payments that pointed at it.
     func deleteDebt(_ id: String) {
         update { s in
             s.debts.removeAll { $0.id == id }
@@ -366,12 +375,15 @@ final class Store: ObservableObject {
         }
     }
 
+    /// Saving or deleting a student loan also updates the "Student loans" paycheck line,
+    /// since its amount comes from all the loans together.
     func saveLoan(_ l: Loan) {
         update { s in
             if let i = s.loans.firstIndex(where: { $0.id == l.id }) { s.loans[i] = l } else { s.loans.append(l) }
         }
         syncLoanPlanLine()
     }
+    /// Removes a student loan and updates the "Student loans" paycheck line.
     func deleteLoan(_ id: String) {
         update { $0.loans.removeAll { $0.id == id } }
         syncLoanPlanLine()
@@ -433,11 +445,13 @@ final class Store: ObservableObject {
         }
     }
 
+    /// Adds or updates a savings goal.
     func saveGoal(_ g: Goal) {
         update { s in
             if let i = s.goals.firstIndex(where: { $0.id == g.id }) { s.goals[i] = g } else { s.goals.append(g) }
         }
     }
+    /// Removes a goal and unlinks any savings items that pointed at it.
     func deleteGoal(_ id: String) {
         update { s in
             s.goals.removeAll { $0.id == id }

@@ -6,6 +6,8 @@ struct WindfallView: View {
     @Environment(\.dismiss) private var dismiss
 
     enum Kind: String { case debt, loan, goal, keep }
+    /// One place the money can go. Its id is the kind's prefix plus the item's own id
+    /// ("d:" debt, "l:" loan, "g:" goal), or "keep"; `apply()` strips the prefix again.
     struct Dest: Identifiable {
         let id: String; let kind: Kind; let name: String; let detail: String
         let cap: Double   // most it can take (balance owed or goal left); .infinity for keep
@@ -19,6 +21,8 @@ struct WindfallView: View {
 
     var amount: Double { Double(amountText) ?? 0 }
 
+    /// Every place with room for money: debts and loans by interest rate (highest first),
+    /// then goals, then keeping it.
     var dests: [Dest] {
         let e = store.engine
         var out: [Dest] = []
@@ -40,12 +44,14 @@ struct WindfallView: View {
         return out
     }
 
+    /// The amount typed for a destination, or 0.
     func value(_ id: String) -> Double { Double(split[id] ?? "") ?? 0 }
     var assigned: Double { dests.reduce(0) { $0 + value($1.id) } }
 
     var body: some View {
         NavigationStack {
             Form {
+                // 1. How much money came in.
                 Section {
                     HStack {
                         Text("$").foregroundStyle(.secondary)
@@ -57,6 +63,7 @@ struct WindfallView: View {
                     Text("The suggestion keeps 10% for you, fills an emergency fund next, then pays the highest interest rates first. Change any amount below.")
                 }
 
+                // 2. An amount for each place it could go. Turns red if more than that place needs.
                 Section {
                     ForEach(dests) { d in
                         HStack {
@@ -80,8 +87,10 @@ struct WindfallView: View {
                         .foregroundStyle(left < -0.005 ? Theme.over : .secondary)
                 }
 
+                // 3. What the split changes: payoff dates, interest, goal progress.
                 if assigned > 0.005 { impactSection }
 
+                // 4. Save it, after a confirmation.
                 Section {
                     Button { confirming = true } label: {
                         Text("Apply to my balances").frame(maxWidth: .infinity).fontWeight(.semibold)
@@ -106,6 +115,8 @@ struct WindfallView: View {
         }
     }
 
+    /// Something besides "keep" has money, the total isn't more than the amount, and no
+    /// place gets more than it needs.
     var canApply: Bool {
         assigned - value("keep") > 0.005 && assigned <= amount + 0.005
             && !dests.contains { value($0.id) > $0.cap + 0.005 }
@@ -127,6 +138,7 @@ struct WindfallView: View {
         let debtMoney = store.state.debts.reduce(0) { $0 + value("d:" + $1.id) }
         let loanMoney = store.state.loans.reduce(0) { $0 + value("l:" + $1.id) }
         let hasDebts = store.state.debts.contains { e.curBal($0) > 0.005 }
+        // "3 months sooner", or nil if the date didn't move.
         func sooner(_ a: Int, _ b: Int) -> String? { a > b ? "\(a - b) months sooner" : nil }
         return Section("What it changes") {
             if debtMoney + loanMoney > 0 && !before.stuck && !after.stuck {
@@ -150,6 +162,7 @@ struct WindfallView: View {
         }
     }
 
+    /// A result row: label, the new value, and a green note like "3 months sooner".
     func impact(_ label: String, _ value: String, _ note: String?) -> some View {
         HStack {
             Text(label)
@@ -163,10 +176,13 @@ struct WindfallView: View {
 
     // MARK: Suggestion and apply
 
+    /// Fills in a starting split: 10% to keep, an emergency fund up to 40%, then debts
+    /// at 8% APR or more, other goals, other debts, and anything left to keep.
     func suggest() {
         var left = r2(amount)
         var plan: [String: Double] = [:]
         let ds = dests
+        // Gives a destination up to `want`, limited by what's left to hand out.
         func give(_ id: String, _ want: Double) {
             let a = r2(min(left, want)); guard a > 0.004 else { return }
             plan[id, default: 0] += a; left = r2(left - a)
@@ -185,6 +201,7 @@ struct WindfallView: View {
         split = plan.mapValues { String(format: "%.2f", $0) }
     }
 
+    /// Saves the split: lowers debt and loan balances and raises goals (Store.applyWindfall).
     func apply() {
         var debts: [String: Double] = [:], loans: [String: Double] = [:], goals: [String: Double] = [:]
         for d in dests {
@@ -201,6 +218,7 @@ struct WindfallView: View {
         done = true
     }
 
+    // The icon and color for each kind of destination.
     func icon(_ k: Kind) -> String {
         switch k { case .debt: "creditcard"; case .loan: "graduationcap"; case .goal: "target"; case .keep: "hand.thumbsup" }
     }

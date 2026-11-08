@@ -11,12 +11,15 @@ import Foundation
 //   which also sort correctly as plain strings.
 // - IDs are a one-letter prefix plus 7 random characters (r = recurring, x = one-time,
 //   b = purchase, i = extra income, d = debt, g = goal, l = loan).
+// - Each type has an empty `init()` for making a new item in code (every field starts at
+//   its default) and an `init(from:)` that reads a saved file.
 
 // MARK: - Flexible decoding
 // The web app stores some values as either numbers or strings ("15" vs 15, "last").
 // These helpers read whichever shape is there so a backup from the web app always loads.
 
 extension KeyedDecodingContainer {
+    /// Text, or a number or true/false turned into text. Nil if the field is missing.
     func str(_ k: Key) -> String? {
         if let v = try? decodeIfPresent(String.self, forKey: k) { return v }
         if let v = try? decodeIfPresent(Int.self, forKey: k) { return String(v) }
@@ -26,15 +29,18 @@ extension KeyedDecodingContainer {
         if let v = try? decodeIfPresent(Bool.self, forKey: k) { return v ? "true" : "false" }
         return nil
     }
+    /// A number, or text that holds one ("12.50").
     func dbl(_ k: Key) -> Double? {
         if let v = try? decodeIfPresent(Double.self, forKey: k) { return v }
         if let s = try? decodeIfPresent(String.self, forKey: k), let v = Double(s) { return v }
         return nil
     }
+    /// A whole number, from a number or text (decimals are dropped).
     func int(_ k: Key) -> Int? {
         if let v = dbl(k) { return Int(v) }
         return nil
     }
+    /// true/false, or 1/0, or the text "true"/"1".
     func bool(_ k: Key) -> Bool? {
         if let v = try? decodeIfPresent(Bool.self, forKey: k) { return v }
         if let v = try? decodeIfPresent(Int.self, forKey: k) { return v != 0 }
@@ -256,6 +262,7 @@ struct Cell: Codable, Equatable {
     var buys: [String: [Buy]] = [:]       // purchases, keyed by spending category (Recurring id)
     var addIncome: [IncomeItem] = []
 
+    // Field names in the saved file. They must match the web app's.
     enum CodingKeys: String, CodingKey { case income, ov, extras, buys, addIncome }
 
     init() {}

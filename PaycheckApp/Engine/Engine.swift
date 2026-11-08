@@ -113,6 +113,9 @@ final class Engine {
     private var inFocus = false
     private var focusCache: String?
 
+    /// Results are worked out the first time they're asked for and kept in the caches
+    /// above. That's safe because an Engine never sees a changed budget: the Store makes a
+    /// new one after every change.
     init(_ s: BudgetState) { self.s = s }
 
     var cfg: BudgetSettings { s.settings }
@@ -173,6 +176,7 @@ final class Engine {
         return out
     }
 
+    /// Paycheck `n` (1-based) in a month, or nil if the month doesn't have that many.
     func check(_ key: String, _ n: Int) -> Check? {
         let l = checksIn(key); return n >= 1 && n <= l.count ? l[n - 1] : nil
     }
@@ -243,8 +247,14 @@ final class Engine {
     /// The recurring item that carries the extra debt payment, if it's on your paychecks.
     var extraRec: Recurring? { s.recurring.first { $0.extraLine } }
 
+    /// A debt's name for labels like "Extra → Discover", with a fallback when none is picked.
     func debtName(_ id: String) -> String { s.debts.first { $0.id == id }?.name ?? "your next debt" }
 
+    /// Turns a recurring item plus this paycheck's override into a Line.
+    /// - The override's amount wins over the item's usual amount.
+    /// - Spending categories ("expense") count whichever is bigger: the budget or what was spent.
+    /// - Autopay items count as paid once their due date has passed, unless the user
+    ///   set the status by hand (`o.paid` is then not nil).
     private func recLine(_ r: Recurring, _ o: Override, meta: String, sortKey: Double, home: Int, homeKey: String, dueDate: Date?, buys: [Buy]) -> Line {
         let env = o.amount ?? r.amount
         let spent = buys.reduce(0) { $0 + $1.amt }
@@ -264,6 +274,8 @@ final class Engine {
         guard check(key, n) != nil else { return [] }
         let c = cell(key, n), w = windowFor(key, n)
         var out: [Line] = []
+        // Adds one item to this paycheck. `meta` is the small label under the name ("Due Nov 5"),
+        // `sk` sorts lines by due date (days into the paycheck), and `d` is the due date.
         func push(_ r0: Recurring, _ meta: String, _ sk: Double, _ d: Date?) {
             var r = r0
             let o = c.ov[r.id] ?? Override()
@@ -319,6 +331,8 @@ final class Engine {
             if Int(mv) != nil { return "\(k)|\(mv)" }
             return mv
         }
+        // Collects the lines that start on paycheck `h` of month `k` and end up on this one,
+        // either because they belong here or because they were moved here.
         func take(_ k: String, _ h: Int) {
             let ov = cell(k, h).ov
             for var l in naturalRec(k, h) where target(ov[l.id]?.moveTo, k, h) == me {
@@ -462,11 +476,14 @@ final class Engine {
     /// Cards and personal loans only, without student loans. The Payoff screen uses it to
     /// rank debts by payoff order; its dates come from `simulateAll` (Engine+Loans.swift).
     func simulate(extra: Double, strategy: String) -> SimResult {
+        // A working copy of each debt that the loop below pays down.
         struct D { var id: String; var bal: Double; var apr: Double; var min: Double }
         var ds = s.debts.map { D(id: $0.id, bal: curBal($0), apr: $0.apr, min: $0.min) }.filter { $0.bal > 0.005 }
         let budget = ds.reduce(0) { $0 + $1.min } + extra
         var m = 0, interest = 0.0, series = [ds.reduce(0) { $0 + $1.bal }], payoff: [String: Int] = [:]
         let cmp = order(strategy)
+        // One loop per month, for up to 50 years: add interest, pay every minimum, put
+        // what's left toward debts in strategy order, and note the month each one hits zero.
         while ds.contains(where: { $0.bal > 0.005 }) && m < 600 {
             m += 1
             for i in ds.indices where ds[i].bal > 0.005 { let x = ds[i].bal * ds[i].apr / 1200; ds[i].bal += x; interest += x }
@@ -512,6 +529,10 @@ final class Engine {
     /// past-due bills, and a look at the next paycheck.
     struct Upcoming { var toPay: [Line]; var pending: [Line]; var overdue: [Line]; var cur: Check?; var next: Check?; var nextTotal: Double; var nextCount: Int }
 
+    /// Looks two months back so a past-due bill still shows. A bill lands in one list:
+    /// - pending: set aside, or on autopay and due within 3 weeks (money is handled)
+    /// - overdue: past its due date and not paid
+    /// - toPay: on the current paycheck, not paid, set aside, on autopay or past due
     func upcoming() -> Upcoming {
         let cur = DU.ym(Date()), start = cfg.startMonth
         let keys = [DU.addMonths(cur, -2), DU.addMonths(cur, -1), cur, DU.addMonths(cur, 1)].filter { $0 >= start }

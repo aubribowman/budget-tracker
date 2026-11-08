@@ -11,6 +11,8 @@ import Foundation
 
 /// Projection for all student loans together.
 struct LoanSim {
+    /// One loan's numbers: balance today, balance when repayment starts, its standard
+    /// monthly payment, and the month it's paid off.
     struct Item { var id: String; var balanceNow: Double; var atRepay: Double; var standard: Double; var payoff: String? }
     var items: [String: Item] = [:]
     var monthly: Double = 0          // what the plan pays each month once repayment starts
@@ -21,9 +23,11 @@ struct LoanSim {
 }
 
 extension Engine {
+    /// The loan types the app knows, stored by id ("subsidized") and shown by label.
     static let loanKinds: [(id: String, label: String)] = [
         ("subsidized", "Federal subsidized"), ("unsubsidized", "Federal unsubsidized"), ("private", "Private")
     ]
+    /// The display name for a loan type id, like "Federal subsidized".
     static func loanKindLabel(_ k: String) -> String { loanKinds.first { $0.id == k }?.label ?? k.capitalized }
 
     /// Subsidized loans don't build interest before repayment; the others do.
@@ -89,6 +93,8 @@ extension Engine {
         let start = loanBalances()
         let calc = Dictionary(uniqueKeysWithValues: s.loans.map { ($0.id, loanCalc($0, balances: start)) })
 
+        // A working copy of each loan. `std` is its standard payment and `own` the share
+        // of the plan's payment it gets before extra goes to the highest rate.
         struct L { var id: String; var bal: Double; var apr: Double; var repay: String; var accrues: Bool; var std: Double; var own: Double }
         var ls: [L] = s.loans.map { l in
             let b = start[l.id] ?? l.balance
@@ -156,9 +162,11 @@ struct PayoffSim {
     var count = 0                      // debts and loans with a balance
     var stuck = false
 
+    /// Everything owed `m` months from now, cards and loans together (for the chart).
     func total(_ m: Int) -> Double {
         (m < debtSeries.count ? debtSeries[m] : 0) + (m < loanSeries.count ? loanSeries[m] : 0)
     }
+    // The month each group is paid off, as "yyyy-MM", counting from `now`.
     func debtsDone(_ now: String) -> String { DU.addMonths(now, debtMonths) }
     func loansDone(_ now: String) -> String { DU.addMonths(now, loanMonths) }
     func finish(_ now: String) -> String { DU.addMonths(now, months) }
@@ -214,10 +222,13 @@ extension Engine {
         let poolBase = ds.filter { !$0.loan }.reduce(0) { $0 + $1.min } + extra
         let cmp = order(strategy)
         let target = s.targetDebt
+        // With the "Pick a debt" strategy, the one debt that gets all the extra.
         func isTarget(_ d: D) -> Bool { strategy == "target" && d.id == target }
 
         var m = 0
+        // Still owed and being paid (a student loan isn't paid until repayment starts).
         func active(_ d: D) -> Bool { d.bal > 0.005 && (!d.loan || m > d.start) }
+        // Saves this month's totals for the chart.
         func record() {
             r.debtSeries.append(ds.filter { !$0.loan }.reduce(0) { $0 + max(0, $1.bal) })
             r.loanSeries.append(ds.filter { $0.loan }.reduce(0) { $0 + max(0, $1.bal) })

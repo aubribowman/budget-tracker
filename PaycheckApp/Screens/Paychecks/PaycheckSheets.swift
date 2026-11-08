@@ -36,7 +36,7 @@ struct IncomeItemSheet: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
     let check: Check
-    @State var item: IncomeItem
+    @State var item: IncomeItem     // a new item, or the one being edited
     @State private var amount = ""
 
     var isNew: Bool { !store.engine.cell(check.key, check.n).addIncome.contains { $0.id == item.id } }
@@ -48,6 +48,7 @@ struct IncomeItemSheet: View {
                     TextField("Where it's from (side job, refund…)", text: $item.name)
                     TextField("Amount", text: $amount).decimalPad()
                 } footer: {
+                    // Money taken from savings is linked to what it paid for, so say what editing it does.
                     if store.isSavingsUse(key: check.key, n: check.n, id: item.id) {
                         Text("Taken from a savings goal to pay for something on this paycheck. Changing the amount changes what it paid for and the goal too. Deleting it puts the money back on the goal.")
                     } else {

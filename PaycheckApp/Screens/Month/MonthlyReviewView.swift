@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Everything the monthly review needs for one month.
 struct MonthReview {
+    /// A spending category's budget and spending for the month. `diff` is what's left (negative if over).
     struct Cat: Identifiable { let id: String; let name: String; let budget: Double; let spent: Double
         var diff: Double { budget - spent } }
     var income = 0.0, out = 0.0, planned = 0.0
@@ -15,6 +16,7 @@ struct MonthReview {
     var spent: Double { cats.reduce(0) { $0 + $1.spent } }
     var kept: Double { income - out }
 
+    /// Works out the review for month `key` ("yyyy-MM") from every paycheck in it.
     init(_ e: Engine, _ key: String) {
         var catMap: [String: (String, Double, Double)] = [:]
         var buys: [Buy] = []
@@ -206,10 +208,13 @@ struct MonthlyReviewView: View {
         }
     }
 
+    /// A label and a value.
     func row(_ label: String, _ value: String) -> some View {
         HStack { Text(label); Spacer(); Text(value).monospacedDigit().foregroundStyle(.secondary) }.font(.ui(.subheadline))
     }
 
+    /// This month's amount with ▲/▼ and the change from last month, green when the change
+    /// is good. For spending lower is good; pass `higherIsGood` for income and savings.
     func compare(_ label: String, _ now: Double, _ before: Double, higherIsGood: Bool = false) -> some View {
         let d = now - before
         let good = higherIsGood ? d >= 0 : d <= 0

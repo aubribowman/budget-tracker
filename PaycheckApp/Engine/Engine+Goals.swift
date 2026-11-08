@@ -17,6 +17,8 @@ struct GoalStatus {
     }
 }
 
+// MARK: - Goal math
+
 extension Engine {
     /// Savings lines linked to this goal and marked paid after its balance was entered
     /// (see `countsAfter`).

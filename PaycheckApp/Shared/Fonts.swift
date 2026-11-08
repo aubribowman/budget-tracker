@@ -71,6 +71,7 @@ import UIKit
 extension AppFonts {
     /// Space Grotesk for the iPhone's big page titles and small bar titles.
     static func styleNavigationBars() {
+        // Space Grotesk at a size that still follows the user's text size setting.
         func font(_ size: CGFloat, _ w: UIFont.Weight) -> UIFont {
             let d = UIFontDescriptor(fontAttributes: [.family: display, .traits: [UIFontDescriptor.TraitKey.weight: w]])
             return UIFontMetrics(forTextStyle: size > 20 ? .largeTitle : .headline).scaledFont(for: UIFont(descriptor: d, size: size))

@@ -32,7 +32,9 @@ struct PayoffChartCard: View {
     static let loanFill = Color.adaptive(light: 0xA9CBD1, dark: 0x5F7E83)
     static let debtFill = Color.adaptive(light: 0xE6B9AF, dark: 0xA9776E)
 
+    /// One month on the chart: what's owed on cards/personal loans and on student loans.
     struct Point: Identifiable { let id: Int; let date: Date; let debt: Double; let loan: Double }
+    /// A debt or loan and the month (counting from now) it's paid off, for the markers.
     struct Payoff: Identifiable { let id: String; let name: String; let month: Int; let loan: Bool }
 
     var body: some View {
@@ -161,14 +163,18 @@ struct PayoffChartCard: View {
         return top > 0 ? [0, top / 2, top] : [0]
     }
 
+    // Converting between chart dates and month numbers (0 = this month).
     func date(_ start: Date, _ m: Int) -> Date { Calendar.current.date(byAdding: .month, value: m, to: start) ?? start }
 
+    /// Which month of the simulation a chart date falls in, kept within the data.
     func monthIndex(_ d: Date, _ start: Date) -> Int {
         max(0, min(sim.debtSeries.count - 1, Calendar.current.dateComponents([.month], from: start, to: d).month ?? 0))
     }
 
     func sameMonth(_ a: Date, _ b: Date) -> Bool { Calendar.current.isDate(a, equalTo: b, toGranularity: .month) }
 
+    /// The box shown while dragging across the chart: the month, what's owed,
+    /// and anything paid off that month.
     func callout(at d: Date, start: Date, payoffs: [Payoff]) -> some View {
         let m = monthIndex(d, start)
         let gone = payoffs.filter { $0.month == m }.map(\.name)
@@ -190,6 +196,7 @@ struct PayoffChartCard: View {
         .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
     }
 
+    /// Short axis labels: "$12k", or "$800" under a thousand.
     func compact(_ v: Double) -> String {
         v >= 1000 ? "$\(Int((v / 1000).rounded()))k" : money0(v)
     }

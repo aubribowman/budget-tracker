@@ -28,6 +28,7 @@ struct UpcomingCard: View {
             }
             .buttonStyle(.plain)
 
+            // Open: three lists (see Engine.upcoming for which bill goes where), then a look ahead.
             if !collapsed {
                 if let c = u.cur {
                     SectionLabel("Pay from your \(DU.short(c.date)) paycheck")
@@ -55,6 +56,7 @@ struct UpcomingCard: View {
         .card()
     }
 
+    /// The one line shown while the card is folded, like "2 bills, $340.00 · 1 past due".
     private func summary(_ u: Engine.Upcoming) -> String {
         var bits: [String] = []
         if !u.toPay.isEmpty {

@@ -62,6 +62,8 @@ struct RootView: View {
             }
     }
 
+    /// Asks for Face ID (or the passcode) and removes the lock screen if it works.
+    /// `unlocking` stops a second prompt from opening while one is already showing.
     private func unlock() {
         guard lockOn else { locked = false; return }
         guard !unlocking else { return }
@@ -73,6 +75,7 @@ struct RootView: View {
         }
     }
 
+    /// The five tabs, plus syncing every 30 seconds while the app is open.
     private var tabs: some View {
         TabView(selection: $tab) {
             HomeView(tab: $tab)

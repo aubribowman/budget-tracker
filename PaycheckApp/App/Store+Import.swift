@@ -15,6 +15,10 @@ enum ImportTarget: Hashable {
     }
 }
 
+// MARK: - Bank import
+// Suggesting where each bank transaction goes, remembering the user's choices as
+// rules, and adding the picked transactions to paychecks. The screen is BankImportView.
+
 extension Store {
     /// True if this transaction came in on an earlier import.
     func alreadyImported(_ t: BankTx) -> Bool { state.imported[t.id] != nil }

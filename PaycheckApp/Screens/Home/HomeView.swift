@@ -27,11 +27,14 @@ struct HomeView: View {
                     #endif
                     PageTitle(greeting)
                     if store.isEmpty {
+                        // No budget yet: welcome and ways to start.
                         EmptyStart()
                     } else {
+                        // The cards, top to bottom. Each one opens its tab when tapped.
                         let e = store.engine
                         let u = e.upcoming()
                         PaycheckSummary(u: u)
+                        // Early in a month, until last month's review is opened.
                         if let m = Review.pending(store, reviewed: reviewed) {
                             ReviewPrompt(month: m) { reviewMonth = m }
                         }
@@ -43,6 +46,7 @@ struct HomeView: View {
                             DebtSummary { tab = .debt }
                         }
                         GoalsSummary { showGoals = true }
+                        // Quick actions at the bottom.
                         if !envs.isEmpty {
                             Button { adding = true } label: {
                                 Label("Log a purchase", systemImage: "plus.circle.fill")
@@ -70,11 +74,12 @@ struct HomeView: View {
                 ToolbarItem(placement: .primaryAction) {
                     Button { showSetup = true } label: { Image(systemName: "gearshape") }
                         .accessibilityLabel("Setup")
-                        .accessibilityLabel("Setup")
                 }
             }
+            // Everything Home can open on top of itself.
             .sheet(isPresented: $adding) { AddPurchaseSheet(envs: envs, preset: nil).macSheet() }
             .sheet(isPresented: $showSetup) { SettingsView(showsDone: true).macSheet() }
+            // The review sheet needs an Identifiable item, so the month text is wrapped in one.
             .sheet(item: Binding(get: { reviewMonth.map { IdentifiedMonth(id: $0) } }, set: { reviewMonth = $0?.id })) { m in
                 MonthlyReviewView(month: m.id).macSheet()
             }
@@ -83,6 +88,7 @@ struct HomeView: View {
         }
     }
 
+    /// "Good morning, Aubri", or without the name if none is set.
     var greeting: String {
         let hello: String
         switch Calendar.current.component(.hour, from: Date()) {
@@ -134,6 +140,7 @@ private struct PaycheckSummary: View {
         .card(tint: Theme.leadCard)   // the one card Home leads with
     }
 
+    /// "today", "tomorrow" or "in 5 days".
     func daysAway(_ d: Date) -> String {
         let n = DU.days(DU.today, d)
         return n <= 0 ? "today" : n == 1 ? "tomorrow" : "in \(n) days"
@@ -206,6 +213,7 @@ private struct DueCard: View {
                         PayCircle(line: l)
                     }
                 } else if !u.toPay.isEmpty {
+                    // Several bills: the total, then the first three.
                     ValueRow {
                         Text("\(u.toPay.count) bills due")
                     } value: {
@@ -240,6 +248,7 @@ private struct SpendingCard: View {
     let open: () -> Void
 
     var body: some View {
+        // The spending categories on this paycheck, added up.
         let lines = store.engine.lines(check.key, check.n).filter { $0.type == "expense" && !$0.skip }
         let budget = lines.reduce(0) { $0 + $1.env }
         let spent = lines.reduce(0) { $0 + $1.spent }
@@ -256,6 +265,7 @@ private struct SpendingCard: View {
             ProgressBar(value: budget > 0 ? spent / budget : 0,
                         color: over ? Theme.over : TypeInfo.of("expense").color, height: 6)
             SpendingTrend(current: check)
+            // Up to four categories with what's left in each.
             ForEach(lines.prefix(4), id: \.uid) { l in
                 let o = l.spent > l.env + 0.004
                 ValueRow(spacing: Space.s) {
@@ -278,6 +288,7 @@ private struct SpendingTrend: View {
     @EnvironmentObject var store: Store
     let current: Check
 
+    /// One paycheck's spending. `now` marks the current paycheck, drawn in color.
     struct Bar: Identifiable { let id: String; let label: String; let spent: Double; let now: Bool }
 
     var body: some View {

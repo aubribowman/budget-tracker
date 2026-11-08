@@ -10,6 +10,7 @@ struct EmptyStart: View {
 
     var body: some View {
         VStack(spacing: Space.l) {
+            // Welcome text.
             VStack(spacing: Space.s) {
                 IconBadge(icon: "dollarsign.circle", color: Theme.accent, size: 60)
                 Text("Plan every paycheck").font(.display(.title2, weight: .bold))
@@ -20,6 +21,7 @@ struct EmptyStart: View {
             }
             .frame(maxWidth: .infinity)
 
+            // The two setup steps, linking to the same screens as Setup.
             VStack(spacing: 0) {
                 NavigationLink { ScheduleView() } label: {
                     StartStep(number: 1, title: "Set your paydays",
@@ -34,6 +36,7 @@ struct EmptyStart: View {
             .buttonStyle(.plain)
             .background(Theme.bg, in: RoundedRectangle(cornerRadius: Radius.inner, style: .continuous))
 
+            // Or bring in a budget from a backup file (from this app or the web app).
             Button { importing = true } label: {
                 Label("Restore from a backup", systemImage: "square.and.arrow.down")
                     .font(.ui(.subheadline).weight(.semibold))
@@ -45,6 +48,7 @@ struct EmptyStart: View {
             guard case .success(let url) = result else { return }
             let ok = url.startAccessingSecurityScopedResource()
             defer { if ok { url.stopAccessingSecurityScopedResource() } }
+            // On success Home redraws with the budget; only a failure needs a message.
             if let data = try? Data(contentsOf: url), store.importBackup(data) { return }
             importFailed = true
         }

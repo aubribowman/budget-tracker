@@ -5,6 +5,7 @@ struct DebtEditSheet: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
     @State var debt: Debt
+    // Text fields edit strings; save() turns them back into numbers.
     @State private var balance = ""
     @State private var apr = ""
     @State private var minPay = ""
@@ -18,6 +19,8 @@ struct DebtEditSheet: View {
         NavigationStack {
             Form {
                 TextField("Name", text: $debt.name)
+                // "Starting balance" is the highest it was, for the paid-off progress bar.
+                // A credit limit makes it a card for the utilization screen.
                 Section {
                     field("Balance on latest statement", $balance)
                     field("Starting balance", $original)
@@ -40,6 +43,7 @@ struct DebtEditSheet: View {
             .confirmationDialog("Delete \(debt.name)?", isPresented: $confirmDelete) {
                 Button("Delete", role: .destructive) { store.deleteDebt(debt.id); dismiss() }
             }
+            // Fill the text fields from the debt.
             .onAppear {
                 balance = String(format: "%.2f", debt.balance); apr = String(format: "%.2f", debt.apr)
                 minPay = String(format: "%.2f", debt.min); original = String(format: "%.2f", debt.original)
@@ -48,10 +52,13 @@ struct DebtEditSheet: View {
         }
     }
 
+    /// A label with a number field on the right.
     func field(_ label: String, _ text: Binding<String>) -> some View {
         HStack { Text(label); Spacer(); TextField("0.00", text: text).decimalPad().multilineTextAlignment(.trailing).frame(maxWidth: 120) }
     }
 
+    /// Saves the debt. A new balance also moves `asOf` to now, so only payments marked
+    /// paid after this moment come off it (see Engine.paidSince).
     func save() {
         var d = debt
         let nb = Double(balance) ?? d.balance

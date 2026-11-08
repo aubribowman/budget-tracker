@@ -59,6 +59,8 @@ struct StudentLoansSection: View {
         }
     }
 
+    /// The one monthly payment for all student loans, when it starts, and whether
+    /// it shows as a line on your paychecks.
     func planCard(_ sim: LoanSim) -> some View {
         let onPaychecks = store.engine.loanPlanRec != nil
         return VStack(alignment: .leading, spacing: 10) {
@@ -87,6 +89,7 @@ struct StudentLoansSection: View {
         .keyboardDoneButton { commitPlan() }
     }
 
+    /// Saves the typed payment and start month. A blank payment means the standard plan.
     func commitPlan() {
         store.setLoanPlan(payment: Double(payText) ?? 0, start: DU.ym(planStart))
     }
@@ -96,8 +99,8 @@ struct StudentLoansSection: View {
 struct LoanCard: View {
     @EnvironmentObject var store: Store
     let loan: Loan
-    let item: LoanSim.Item?
-    let payoff: String?
+    let item: LoanSim.Item?     // this loan's numbers from simulateLoans
+    let payoff: String?         // payoff month from simulateAll, so it matches the Payoff tab
 
     var body: some View {
         let e = store.engine
@@ -117,6 +120,7 @@ struct LoanCard: View {
                 if let p = payoff { Text("Paid off \(DU.monthLabel(p, short: true))") }
             }
             .font(.ui(.caption)).foregroundStyle(.secondary)
+            // Before repayment, warn how much interest will be added by the time it starts.
             if let it = item, !inRepay, it.atRepay > bal + 0.5 {
                 Text("About \(money(it.atRepay)) when repayment starts. \(money(it.atRepay - bal)) of interest builds up before then.")
                     .font(.ui(.caption)).foregroundStyle(Theme.over)
@@ -134,6 +138,7 @@ struct LoanEditSheet: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
     @State var loan: Loan
+    // Text fields edit strings; save() turns them back into numbers.
     @State private var balance = ""
     @State private var apr = ""
     @State private var payment = ""
@@ -149,6 +154,7 @@ struct LoanEditSheet: View {
                 Picker("Type", selection: $loan.kind) {
                     ForEach(Engine.loanKinds, id: \.id) { Text($0.label).tag($0.id) }
                 }
+                // The loan's numbers. The footer explains interest before repayment for the chosen type.
                 Section {
                     field("Balance today", $balance)
                     field("Interest rate %", $apr)
@@ -177,6 +183,7 @@ struct LoanEditSheet: View {
             .confirmationDialog("Delete \(loan.name)?", isPresented: $confirmDelete) {
                 Button("Delete", role: .destructive) { store.deleteLoan(loan.id); dismiss() }
             }
+            // Fill the fields from the loan. Zeros show as empty fields rather than "0.00".
             .onAppear {
                 if isNew { loan.name = "" }
                 balance = loan.balance > 0 ? String(format: "%.2f", loan.balance) : ""
@@ -187,10 +194,12 @@ struct LoanEditSheet: View {
         }
     }
 
+    /// A label with a number field on the right.
     func field(_ label: String, _ text: Binding<String>) -> some View {
         HStack { Text(label); Spacer(); TextField("0.00", text: text).decimalPad().multilineTextAlignment(.trailing).frame(maxWidth: 120) }
     }
 
+    /// Saves the loan from the form's fields.
     func save() {
         var l = loan
         let nb = r2(Double(balance) ?? l.balance)

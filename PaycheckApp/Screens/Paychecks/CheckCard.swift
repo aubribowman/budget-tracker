@@ -17,6 +17,7 @@ struct CheckCard: View {
         let t = e.totals(check.key, check.n)
         let ls = e.lines(check.key, check.n)
         let w = e.windowFor(check.key, check.n)
+        // Which cards are folded is saved as a comma list of ids like "check.2026-10.1".
         let cardId = "check.\(check.key).\(check.n)"
         let cardFolded = Fold.has(folded, cardId)
         VStack(alignment: .leading, spacing: 12) {
@@ -58,11 +59,14 @@ struct CheckCard: View {
                         .compactMap { $0 }.joined(separator: ", ") + " so far")
                     .font(.ui(.subheadline)).foregroundStyle(.secondary)
             }
+            // The paycheck's window: bills due in these days are paid from it.
             Tag(text: "Covers bills due \(DU.range(w.from, DU.addDays(w.to, -1)))")
 
+            // A bar split by type (bills, spending, savings…) and its key.
             AllocationBar(totals: t)
             AllocationKey(totals: t)
 
+            // Extra income added to this paycheck (side job, money from savings). Tap to edit.
             let extraItems = e.cell(check.key, check.n).addIncome
             if !extraItems.isEmpty {
                 ValueRow {
@@ -91,6 +95,7 @@ struct CheckCard: View {
                 }
             }
 
+            // The lines, grouped by type in a fixed order, each group foldable.
             ForEach(TypeInfo.order, id: \.self) { type in
                 let group = ls.filter { $0.type == type }
                 if !group.isEmpty {
@@ -186,6 +191,7 @@ struct AllocationKey: View {
         .foregroundStyle(.secondary)
         .accessibilityElement(children: .combine)
     }
+    /// One legend entry: a colored dot and its name.
     private func item(_ label: String, _ color: Color) -> some View {
         HStack(spacing: Space.xs) {
             Circle().fill(color).frame(width: 8, height: 8)
@@ -289,6 +295,7 @@ struct LineRow: View {
         return p.joined(separator: ", ")
     }
 
+    /// The small gray line under the name ("Due Nov 3, every 3 months") plus a status tag.
     @ViewBuilder var metaView: some View {
         let parts = metaParts
         if !parts.isEmpty || line.autopay || line.aside || line.auto {
@@ -301,6 +308,8 @@ struct LineRow: View {
         }
     }
 
+    /// The pieces of that line: due date, how often, where it was moved from, and how
+    /// spending compares with its budget (or a bill with its usual amount).
     var metaParts: [String] {
         var p: [String] = []
         if !line.meta.isEmpty { p.append(line.meta) }
@@ -314,6 +323,8 @@ struct LineRow: View {
         return p
     }
 
+    /// The long-press (right-click on Mac) menu. Recurring items can be skipped or moved;
+    /// one-time items can be deleted.
     @ViewBuilder var menuItems: some View {
         Button("Edit") { editing = true }
         if !line.skip {

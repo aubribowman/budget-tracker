@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Credit card utilization: how much of your limits you're using, and what it takes to get lower.
 struct Utilization {
+    /// One credit card with a limit set.
     struct Card: Identifiable { let id: String; let name: String; let balance: Double; let limit: Double
         var pct: Double { limit > 0 ? balance / limit * 100 : 0 }
         /// Payment that brings this card to `target` percent.
@@ -11,8 +12,10 @@ struct Utilization {
     var balance: Double { cards.reduce(0) { $0 + $1.balance } }
     var limit: Double { cards.reduce(0) { $0 + $1.limit } }
     var pct: Double { limit > 0 ? balance / limit * 100 : 0 }
+    /// Total payment that brings all cards together to `target` percent.
     func toReach(_ target: Double) -> Double { max(0, balance - limit * target / 100) }
 
+    /// Every debt that has a credit limit (debts without one are loans, not cards).
     init(_ store: Store) {
         cards = store.state.debts.compactMap { d in
             guard let lim = d.limit, lim > 0 else { return nil }
@@ -72,6 +75,7 @@ struct UtilizationView: View {
         let band = Utilization.band(u.pct)
         ScrollView {
             VStack(spacing: 16) {
+                // All cards together, colored by band (good / fair / high).
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Overall").font(.ui(.caption)).foregroundStyle(.secondary)
                     HStack(alignment: .firstTextBaseline) {
@@ -86,6 +90,7 @@ struct UtilizationView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading).card()
 
+                // Each card, highest utilization first, with what to pay to reach the next band.
                 ForEach(u.cards.sorted { $0.pct > $1.pct }) { c in
                     let b = Utilization.band(c.pct)
                     VStack(alignment: .leading, spacing: 8) {
@@ -119,6 +124,7 @@ struct UtilizationView: View {
         .navigationTitle("Credit utilization")
     }
 
+    /// "Under 30%" with the payment it takes, or "You're there".
     func targetRow(_ label: String, _ amt: Double) -> some View {
         HStack {
             Text(label)

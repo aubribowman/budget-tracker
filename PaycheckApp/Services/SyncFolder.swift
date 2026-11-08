@@ -19,6 +19,7 @@ final class SyncFolder: ObservableObject {
     private var folder: URL?
     var isOn: Bool { folder != nil }
 
+    /// Reconnects to the folder picked last time, if there is one.
     init() {
         folder = Self.resolveBookmark()
         folderName = folder == nil ? nil : UserDefaults.standard.string(forKey: Self.nameKey)
@@ -71,6 +72,8 @@ final class SyncFolder: ObservableObject {
         }
     }
 
+    /// Writes the budget to the sync folder. Called after every change. Errors show in
+    /// `problem` (on the Setup screen) instead of interrupting the user.
     func push(_ state: BudgetState) async {
         guard let folder else { return }
         do {
@@ -126,6 +129,8 @@ final class SyncFolder: ObservableObject {
         return result
     }
 
+    /// Writes the file through NSFileCoordinator, so iCloud Drive or another sync app
+    /// doesn't read a half-written file. `.atomic` writes to a temporary file first.
     nonisolated private static func write(_ data: Data, folder: URL) throws {
         let ok = folder.startAccessingSecurityScopedResource()
         defer { if ok { folder.stopAccessingSecurityScopedResource() } }

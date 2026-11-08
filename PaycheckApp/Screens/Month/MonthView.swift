@@ -92,12 +92,14 @@ struct MonthView: View {
                         CardHeader("Every category")
                         ForEach(cats, id: \.name) { r in
                             ValueRow {
+                                // The item's own icon if it's a recurring item; one-time items get a guess from the name.
                                 IconBadge(icon: store.state.recurring.first { $0.name == r.name && $0.type == r.type }.map { ItemIcon.of($0) }
                                           ?? ItemIcon.guess(r.name, type: r.type), color: TypeInfo.of(r.type).color, size: 28)
                                 Text(r.name).font(.ui(.subheadline))
                             } value: {
                                 VStack(alignment: .trailing, spacing: 0) {
                                     Text(money(r.actual)).font(.ui(.subheadline).weight(.semibold)).monospacedDigit()
+                                    // Green "+$20 vs budget" when under, red "−$20" when over; nothing within 50¢.
                                     let d = r.budget - r.actual
                                     if abs(d) > 0.5 {
                                         Text((d > 0 ? "+" : "−") + money(abs(d)) + " vs budget").font(.ui(.caption2)).foregroundStyle(d > 0 ? Theme.good : Theme.over)
@@ -114,6 +116,7 @@ struct MonthView: View {
                 .readableWidth()
             }
             .background(Theme.bg)
+            // The clipboard button opens the full monthly review for the month shown.
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button { reviewing = true } label: { Image(systemName: "list.bullet.clipboard") }
@@ -141,10 +144,14 @@ struct MonthView: View {
         return Double(cal.component(.day, from: Date())) / Double(days)
     }
 
+    /// One wedge of the donut chart.
     struct Slice: Identifiable { let label: String; let value: Double; let color: Color; var id: String { label } }
 
+    /// One item's planned and actual amounts across every paycheck in the month.
     struct Cat { var name: String; var type: String; var budget: Double; var actual: Double }
 
+    /// Adds up each item over the month's paychecks. Items are matched by type and name,
+    /// so one-time items with the same name are grouped too. Sorted by type, then biggest first.
     func categories() -> [Cat] {
         var map: [String: Cat] = [:]
         let e = store.engine
@@ -162,8 +169,11 @@ struct MonthView: View {
         }
     }
 
+    /// Something that went over: a category, a bill that cost more, or a whole paycheck.
     struct OverItem: Identifiable { let title: String; let detail: String; let over: Double; var id: String { title + detail } }
 
+    /// Everything over budget this month: spending over its budget, bills over their
+    /// usual amount (not the extra debt line), and paychecks with more assigned than they bring in.
     func overBudget() -> [OverItem] {
         let e = store.engine
         var out: [OverItem] = []
@@ -249,6 +259,7 @@ struct MonthSummaryCard: View {
             .accessibilityLabel("\(money0(abs(d))) \(up ? "more" : "less") than \(lastLabel)")
     }
 
+    /// A small colored capsule with an icon, like "On track".
     func chip(_ text: String, icon: String, color: Color) -> some View {
         Label(text, systemImage: icon)
             .font(.ui(.caption).weight(.bold))
@@ -257,6 +268,7 @@ struct MonthSummaryCard: View {
             .foregroundStyle(color)
     }
 
+    /// A big money figure with a label above and an optional note below.
     func stat(_ label: String, _ value: Double, _ sub: String?, subColor: Color = .secondary) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label).font(.ui(.subheadline).weight(.semibold)).foregroundStyle(.secondary)

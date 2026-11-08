@@ -24,6 +24,8 @@ struct RecurringListView: View {
                         }
                     }
                     .onDelete { idx in for i in idx { store.deleteRecurring(items[i].id) } }
+                    // A new item of this section's type. Spending and savings default to every
+                    // paycheck; bills and debts default to a due date on the 1st.
                     Button { var r = Recurring(); r.type = type; r.name = "New " + TypeInfo.of(type).label.lowercased().replacingOccurrences(of: "debt payments", with: "payment"); r.start = DU.ym(Date())
                         if type == "expense" || type == "savings" { r.when = "each" } else { r.due = "1" }
                         editing = r
@@ -38,6 +40,7 @@ struct RecurringListView: View {
         .sheet(item: $editing) { r in RecurringEditSheet(item: r).macSheet() }
     }
 
+    /// The gray line under each item, like "Check 1, due the 5th, autopay".
     func summary(_ r: Recurring) -> String {
         var p: [String] = []
         if r.when == "each" { p.append("Every check") }
@@ -71,9 +74,12 @@ struct RecurringEditSheet: View {
                 TextField("Name", text: $item.name)
                 HStack { Text("Amount"); Spacer(); TextField("0.00", text: $amount).decimalPad().multilineTextAlignment(.trailing) }
                 Picker("Type", selection: $item.type) { ForEach(TypeInfo.order, id: \.self) { Text(TypeInfo.of($0).label).tag($0) } }
+                // `when` is stored as text: "auto" (the paycheck before the due date),
+                // "1" or "2" (always that paycheck), or "each" (split across every paycheck).
                 Picker("Paid from", selection: $item.when) {
                     Text("By due date").tag("auto"); Text("Always check 1").tag("1"); Text("Always check 2").tag("2"); Text("Every check").tag("each")
                 }
+                // Items split across every paycheck don't have a due day.
                 if item.when != "each" {
                     Picker("Due day", selection: $item.due) {
                         Text("None").tag("")
@@ -86,7 +92,10 @@ struct RecurringEditSheet: View {
                 DatePicker("Starts", selection: $startDate, displayedComponents: .date)
                 Toggle("Has an end date", isOn: $hasEnd)
                 if hasEnd { DatePicker("Ends", selection: $endDate, displayedComponents: .date) }
+                // Spending categories can't be on autopay; everything else can.
                 if item.type != "expense" { Toggle("Autopay", isOn: $item.autopay) }
+                // Linking a payment to a debt (or savings to a goal) makes marking it paid
+                // lower that debt's balance (or raise the goal's).
                 if item.type == "debt" {
                     Picker("Debt", selection: $item.debtId) {
                         Text("Not linked").tag("")
@@ -121,6 +130,7 @@ struct RecurringEditSheet: View {
                     }
                 }
             }
+            // Fill the form's text and date fields from the item. Save converts them back.
             .onAppear {
                 amount = String(format: "%.2f", item.amount)
                 startDate = DU.firstOfMonth(item.start.isEmpty ? DU.ym(Date()) : item.start)

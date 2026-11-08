@@ -67,6 +67,7 @@ struct PayoffView: View {
                                     .accessibilityLabel("Cards and personal loans \(Int((p * 100).rounded())) percent paid off")
                             }
                         }
+                        // How long and how much interest, then each group's own payoff month.
                         if total + loanTotal > 0.005 && !all.stuck {
                             let months = all.months
                             Text("\(months) months from now" + (months >= 24 ? " (\((Double(months) / 12).formatted(.number.precision(.fractionLength(1)))) years)" : "") +
@@ -190,6 +191,7 @@ struct PayoffView: View {
         }
     }
 
+    /// Saves the typed extra payment (when the field is submitted or the keyboard closes).
     func commitExtra() {
         if let v = Double(extraText) { store.update { $0.extra = max(0, v) } }
     }
@@ -224,6 +226,7 @@ struct PayoffView: View {
         return max(0, min(1, 1 - now / start))
     }
 
+    /// The payoff month for each group, as legend dots matching the chart's colors.
     @ViewBuilder func groupDates(_ all: PayoffSim, debts: Bool, loans: Bool, now: String) -> some View {
         if debts {
             PayoffLegendDot(color: PayoffChartCard.debtColor, label: "Cards & personal loans", value: DU.monthLabel(all.debtsDone(now), short: true))

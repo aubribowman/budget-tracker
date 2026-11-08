@@ -45,6 +45,7 @@ enum DU {
         guard p.count == 3 else { return nil }
         return date(p[0], p[1], p[2])
     }
+    /// Reads "yyyy-MM" into year and month. Bad text falls back to January 2026 rather than crashing.
     static func parseYM(_ k: String) -> (y: Int, m: Int) {
         let p = k.split(separator: "-")
         let y = p.count > 0 ? Int(p[0]) ?? 2026 : 2026
@@ -64,19 +65,25 @@ enum DU {
         let A = parseYM(a), B = parseYM(b)
         return (B.y - A.y) * 12 + (B.m - A.m)
     }
+    /// Days in a month: 28 to 31. A bill due the 31st is due on this day in shorter months.
     static func lastDay(_ y: Int, _ m: Int) -> Int {
         cal.range(of: .day, in: .month, for: date(y, m, 1))?.count ?? 30
     }
+    /// "2026-11" → Nov 1, 2026 at midnight.
     static func firstOfMonth(_ k: String) -> Date { let (y, m) = parseYM(k); return date(y, m, 1) }
+    /// Midnight at the start of the day, so dates compare by day and not by time.
     static func startOfDay(_ d: Date) -> Date { cal.startOfDay(for: d) }
     static var today: Date { cal.startOfDay(for: Date()) }
+    /// The date `n` days later (or earlier, for a negative `n`).
     static func addDays(_ d: Date, _ n: Int) -> Date { cal.date(byAdding: .day, value: n, to: d) ?? d }
     /// Whole days from `a` to `b`.
     static func days(_ a: Date, _ b: Date) -> Int {
         cal.dateComponents([.day], from: startOfDay(a), to: startOfDay(b)).day ?? 0
     }
     static func weekday(_ d: Date) -> Int { cal.component(.weekday, from: d) }   // 1 = Sun, 7 = Sat
+    /// Day of the month, 1 to 31.
     static func day(_ d: Date) -> Int { cal.component(.day, from: d) }
+    /// The year and month a date is in.
     static func monthOf(_ d: Date) -> (y: Int, m: Int) {
         let c = cal.dateComponents([.year, .month], from: d); return (c.year ?? 2026, c.month ?? 1)
     }
@@ -84,11 +91,13 @@ enum DU {
     // MARK: Labels
 
     static func short(_ d: Date) -> String { shortFmt.string(from: d) }          // "Nov 4"
+    /// A longer date label, like "Wed, Nov 4".
     static func dayLabel(_ d: Date) -> String { dayFmt.string(from: d) }
     /// "November 2026", or "Nov 2026" with `short`.
     static func monthLabel(_ k: String, short: Bool = false) -> String {
         (short ? monthShortFmt : monthFmt).string(from: firstOfMonth(k))
     }
+    /// Just the month's name: "November".
     static func monthName(_ k: String) -> String { monthOnlyFmt.string(from: firstOfMonth(k)) }
     /// "Nov 4–17", or "Nov 28–Dec 11" across months.
     static func range(_ a: Date, _ b: Date) -> String {

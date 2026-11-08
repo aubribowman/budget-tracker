@@ -21,6 +21,8 @@ private func semiBudget(_ items: [Recurring] = []) -> BudgetState {
     return s
 }
 
+/// A recurring item with only the fields a test needs. Defaults to a monthly bill paid
+/// by due date ("auto").
 private func item(_ name: String, _ amount: Double, type: String = "bill", due: String = "", when: String = "auto",
                   every: Int = 1, start: String = "") -> Recurring {
     var r = Recurring()
@@ -211,6 +213,7 @@ struct TotalsTests {
 
 @MainActor
 struct DebtTests {
+    /// A debt entered Jan 1, 2027, starting at its current balance.
     private func debt(_ name: String, balance: Double, apr: Double, min: Double) -> Debt {
         var d = Debt()
         d.name = name; d.balance = balance; d.original = balance; d.apr = apr; d.min = min; d.asOf = "2027-01-01"
@@ -393,6 +396,8 @@ struct BalanceSinceTests {
         return s
     }
 
+    /// Marks the card payment paid on April paycheck `n`, at time `at` (nil = no time
+    /// recorded, like a file saved before paid times existed).
     func markPaid(_ s: inout BudgetState, n: Int = 1, at: String?) {
         var o = Override(); o.paid = true; o.paidAt = at
         var m = s.months["2027-04"] ?? [:]

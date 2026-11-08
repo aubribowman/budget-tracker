@@ -127,11 +127,13 @@ enum Zoom {
     static let key = "macZoom"
     static let levels: [Double] = [0.75, 0.85, 1.0, 1.15, 1.3, 1.5, 1.75, 2.0]
 
+    /// The next level up (+1) or down (-1) from the current zoom, stopping at the ends.
     static func step(_ current: Double, by delta: Int) -> Double {
         let i = levels.firstIndex { $0 >= current - 0.001 } ?? levels.firstIndex(of: 1.0)!
         return levels[max(0, min(levels.count - 1, i + delta))]
     }
 
+    /// "115%".
     static func label(_ z: Double) -> String { "\(Int((z * 100).rounded()))%" }
 }
 
@@ -222,5 +224,6 @@ private struct PageTitleBar: ViewModifier {
 }
 
 extension View {
+    /// Use instead of `.navigationTitle` on a tab that shows a `PageTitle`.
     func pageTitle(_ title: String) -> some View { modifier(PageTitleBar(title: title)) }
 }

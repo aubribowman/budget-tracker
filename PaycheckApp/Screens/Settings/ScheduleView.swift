@@ -4,6 +4,8 @@ import SwiftUI
 struct ScheduleView: View {
     @EnvironmentObject var store: Store
 
+    // Bindings straight to a setting, so every change saves right away. The date and
+    // money versions convert from the stored text ("yyyy-MM-dd") or number.
     func bind<T>(_ kp: WritableKeyPath<BudgetSettings, T>) -> Binding<T> {
         Binding(get: { store.state.settings[keyPath: kp] }, set: { v in store.settings { $0[keyPath: kp] = v } })
     }
@@ -19,6 +21,9 @@ struct ScheduleView: View {
     var body: some View {
         let s = store.state.settings
         Form {
+            // The pay mode decides which sections show below: "semi" (two set days a month),
+            // "biweekly" (every 14 days from a known payday), or "switch" (biweekly until a
+            // date, then semi-monthly, for a job change).
             Section {
                 Picker("How you’re paid", selection: bind(\.mode)) {
                     Text("Semi-monthly").tag("semi"); Text("Biweekly").tag("biweekly"); Text("Biweekly, then semi-monthly").tag("switch")
@@ -28,6 +33,7 @@ struct ScheduleView: View {
 
             if s.mode != "semi" {
                 Section("Biweekly") {
+                    // Any one real payday is enough; every other one is a multiple of 14 days away.
                     DatePicker("Any recent payday", selection: dateBind(\.bwAnchor), displayedComponents: .date)
                     HStack { Text("Take-home per check"); Spacer(); TextField("0.00", text: moneyBind(\.bwPay)).decimalPad().multilineTextAlignment(.trailing) }
                     if s.mode == "switch" {
@@ -38,17 +44,21 @@ struct ScheduleView: View {
             }
             if s.mode != "biweekly" {
                 Section("Semi-monthly") {
+                    // Days stop at 28 so every month has them; "Last day" covers month-end paydays.
                     Picker("First payday", selection: bind(\.payDay1)) { ForEach(1...28, id: \.self) { Text(DU.ordinal($0)).tag($0) } }
                     Picker("Second payday", selection: bind(\.payDay2)) {
                         ForEach(1...28, id: \.self) { Text(DU.ordinal($0)).tag(String($0)) }
                         Text("Last day").tag("last")
                     }
+                    // When a payday falls on a weekend, most employers pay the Friday before.
                     Picker("Weekend paydays", selection: bind(\.weekend)) {
                         Text("Friday before").tag("friday"); Text("Monday after").tag("monday"); Text("That day").tag("none")
                     }
                     HStack { Text("Take-home per check"); Spacer(); TextField("0.00", text: moneyBind(\.pay)).decimalPad().multilineTextAlignment(.trailing) }
                 }
             }
+            // Paying ahead: each paycheck covers bills further out, to build a cushion.
+            // "Carry leftovers" adds what's left on one paycheck to the next.
             Section {
                 Picker("Each paycheck pays for", selection: bind(\.payAhead)) {
                     Text("Bills due before next payday").tag(0)

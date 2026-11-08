@@ -40,6 +40,8 @@ struct SettingsView: View {
                 Section {
                     Toggle("Bill and payday reminders", isOn: $remindersOn)
                         .onChange(of: remindersOn) { _, on in
+                            // Turning on asks iOS for permission; if it's denied, the switch goes back off.
+                            // Either way, rebuild the scheduled reminders to match.
                             Task {
                                 if on { remindersOn = await Notifier.requestPermission() }
                                 await Notifier.reschedule(store.engine)
@@ -64,6 +66,7 @@ struct SettingsView: View {
                          : "Adds purchases and marks bills paid from a file you download from your bank. Your choices are remembered for next time.")
                 }
 
+                // Sync folder: its own view (SyncSection.swift).
                 SyncSection(sync: store.sync, choose: { pickingFolder = true; importing = true }, found: $foundSync)
 
                 Section {
@@ -113,6 +116,7 @@ struct SettingsView: View {
                     ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
                 }
             }
+            // One file picker for two jobs: picking a sync folder (`pickingFolder`) or a backup file.
             .fileImporter(isPresented: $importing, allowedContentTypes: pickingFolder ? [.folder] : [.json, .data]) { result in
                 let forSync = pickingFolder
                 pickingFolder = false
@@ -139,13 +143,17 @@ struct SettingsView: View {
         }
     }
 
+    /// Saves the first name (used in Home's greeting) if it changed.
     func saveName() {
         let n = firstName.trimmingCharacters(in: .whitespaces)
         if n != store.state.settings.firstName { store.settings { $0.firstName = n } }
     }
 
+    /// 24-hour number to "9 AM" / "5 PM", for the reminder time picker.
     func hourLabel(_ h: Int) -> String { h == 12 ? "12 PM" : h > 12 ? "\(h - 12) PM" : "\(h) AM" }
 
+    /// Writes a backup file to a temporary folder for the share sheet. The file uses the
+    /// web app's format, so it can be imported there too.
     func writeBackup() -> URL? {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("paycheck-plan-backup-\(DU.iso(Date())).json")
         do { try store.exportData().write(to: url); return url } catch { store.lastError = error.localizedDescription; return nil }

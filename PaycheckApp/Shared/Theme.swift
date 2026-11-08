@@ -46,6 +46,7 @@ struct TypeInfo {
     /// The order type groups appear in on a paycheck.
     static let order = ["bill", "subscription", "expense", "debt", "savings"]
 
+    /// The label and color for a type id. An unknown type shows its id capitalized, in gray.
     static func of(_ t: String) -> TypeInfo {
         switch t {
         case "bill": return TypeInfo(label: "Bills", color: .adaptive(light: 0x105666, dark: 0x5AA4B4))
@@ -89,6 +90,7 @@ struct CardStyle: ViewModifier {
     }
 }
 extension View {
+    /// Puts the view in a rounded card (see CardStyle).
     func card(tint: Color = Theme.card) -> some View { modifier(CardStyle(tint: tint)) }
 }
 
@@ -149,12 +151,14 @@ struct FlowLayout: Layout {
     var spacing: CGFloat = Space.m
     var lineSpacing: CGFloat = Space.xs
 
+    /// How tall the wrapped rows are at the width offered.
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let rows = rows(width: proposal.width ?? .infinity, subviews)
         let h = rows.map(\.height).reduce(0, +) + lineSpacing * CGFloat(max(0, rows.count - 1))
         return CGSize(width: proposal.width ?? rows.map(\.width).max() ?? 0, height: h)
     }
 
+    /// Places each row left to right, centering items vertically within their row.
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         var y = bounds.minY
         for row in rows(width: bounds.width, subviews) {
@@ -168,8 +172,10 @@ struct FlowLayout: Layout {
         }
     }
 
+    // One line of items: their indexes, total width and the tallest item's height.
     private struct Row { var items: [Int] = []; var width: CGFloat = 0; var height: CGFloat = 0 }
 
+    /// Splits the items into lines, starting a new line when the next item won't fit.
     private func rows(width: CGFloat, _ subviews: Subviews) -> [Row] {
         var rows = [Row()]
         for i in subviews.indices {
@@ -203,7 +209,9 @@ struct Tag: View {
 /// @AppStorage("folded"), so every screen shares one setting.
 enum Fold {
     static let key = "folded"
+    /// True if section `id` is in the saved list (that is, it's folded).
     static func has(_ raw: String, _ id: String) -> Bool { raw.split(separator: ",").contains { $0 == id } }
+    /// The saved list with `id` added if it wasn't there, or removed if it was.
     static func toggled(_ raw: String, _ id: String) -> String {
         var ids = raw.split(separator: ",").map(String.init)
         if let i = ids.firstIndex(of: id) { ids.remove(at: i) } else { ids.append(id) }

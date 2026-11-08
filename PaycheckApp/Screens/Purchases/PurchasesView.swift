@@ -6,8 +6,9 @@ struct PurchasesView: View {
     @EnvironmentObject var store: Store
     @State private var adding = false
     @State private var bankImport = false
-    @State private var filter: String? = nil
+    @State private var filter: String? = nil   // id of the category card tapped, to show only its purchases
 
+    /// The spending categories (recurring items of type "expense", like Groceries).
     var envs: [Recurring] { store.state.recurring.filter { $0.type == "expense" } }
 
     var body: some View {
@@ -58,6 +59,7 @@ struct PurchasesView: View {
                     .listRowSeparator(.hidden)
                 }
                 #else
+                // iPhone and iPad: a plain list section, so rows get the system's swipe-to-delete.
                 Section {
                     if shown.isEmpty { emptyText }
                     ForEach(shown) { x in
@@ -76,6 +78,7 @@ struct PurchasesView: View {
                 #endif
             }
             .macListLook()
+            // The + menu: log one purchase by hand, or import a bank file.
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
@@ -91,8 +94,10 @@ struct PurchasesView: View {
         }
     }
 
+    /// "All purchases", or the category's name while filtered.
     var listTitle: String { filter.flatMap { f in envs.first { $0.id == f }?.name } ?? "All purchases" }
 
+    /// Shown when the month (or the picked category) has no purchases.
     var emptyText: some View {
         EmptyState(icon: "bag", title: "No purchases yet",
                    message: "Nothing logged\(filter == nil ? "" : " in this category") for \(DU.monthLabel(store.month)).",
@@ -100,10 +105,13 @@ struct PurchasesView: View {
                    actionTitle: envs.isEmpty ? nil : "Log a purchase") { adding = true }
     }
 
+    /// Deletes a purchase from the paycheck it was logged on.
     func delete(_ x: BuyEntry) {
         store.deletePurchase(key: x.check.key, n: x.check.n, recId: x.recId, buyId: x.buy.id)
     }
 
+    /// One purchase: store badge, name, date and category, and the amount (refunds in green).
+    /// Long-press to move it to another category or delete it.
     func purchaseRow(_ x: BuyEntry) -> some View {
         let cat = envs.first { $0.id == x.recId }
         return ValueRow(spacing: Space.m) {
@@ -128,6 +136,9 @@ struct PurchasesView: View {
         }
     }
 
+    /// A category's budget for the month and what's left. A month has two or more
+    /// paychecks, each with its own budget for the category, so they're added up here.
+    /// Tapping the card filters the purchase list to it; tapping again clears it.
     func categoryCard(_ r: Recurring) -> some View {
         var budget = 0.0, spent = 0.0
         for c in store.engine.checksIn(store.month) {
@@ -161,8 +172,8 @@ struct PurchasesView: View {
 struct AddPurchaseSheet: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
-    let envs: [Recurring]
-    let preset: String?
+    let envs: [Recurring]       // spending categories to choose from
+    let preset: String?         // category to start with (the one filtered on Purchases), if any
     @State private var note = ""
     @State private var amount = ""
     @State private var date = Date()

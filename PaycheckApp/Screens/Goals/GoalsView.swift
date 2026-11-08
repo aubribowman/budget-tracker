@@ -63,8 +63,9 @@ struct GoalCard: View {
 
     var body: some View {
         let st = store.engine.goalStatus(goal)
-        let linked = store.state.recurring.filter { $0.goalId == goal.id }
+        let linked = store.state.recurring.filter { $0.goalId == goal.id }   // savings items feeding this goal
         VStack(alignment: .leading, spacing: 10) {
+            // Name with a status tag: Reached, On track or Behind (only when there's a due date).
             ValueRow(alignment: .firstTextBaseline) {
                 Text(goal.name).font(.ui(.headline))
             } value: {
@@ -77,6 +78,7 @@ struct GoalCard: View {
                 Text("of \(money(goal.target))").font(.ui(.subheadline)).foregroundStyle(.secondary)
             }
             ProgressBar(value: st.progress, color: st.done ? Theme.good : TypeInfo.of("savings").color)
+            // How it's going: the pace, what's needed to hit the due date, and where the money comes from.
             VStack(alignment: .leading, spacing: 4) {
                 if !st.done {
                     Text(paceLine(st)).font(.ui(.subheadline)).foregroundStyle(.secondary)
@@ -103,6 +105,7 @@ struct GoalCard: View {
         .card()
     }
 
+    /// "$400.00 to go. $100.00/month planned, reach it in Feb 2027."
     func paceLine(_ st: GoalStatus) -> String {
         if st.perMonth <= 0.005 { return "\(money(st.left)) to go. Nothing planned this month." }
         let when = st.finish.map { "reach it in \(DU.monthLabel($0))" } ?? ""
@@ -119,8 +122,8 @@ struct GoalEditSheet: View {
     @State private var saved = ""
     @State private var hasDue = false
     @State private var due = Date()
-    @State private var startSaved = 0.0
-    @State private var linkTo = ""
+    @State private var startSaved = 0.0   // saved amount when the sheet opened, to tell if the user changed it
+    @State private var linkTo = ""        // new goals: the savings item to link, or "" for none
 
     var isNew: Bool { !store.state.goals.contains { $0.id == goal.id } }
     var savingsItems: [Recurring] { store.state.recurring.filter { $0.type == "savings" && !$0.extraLine } }
@@ -139,6 +142,7 @@ struct GoalEditSheet: View {
                     Toggle("Has a target date", isOn: $hasDue)
                     if hasDue { DatePicker("Reach it by", selection: $due, displayedComponents: .date) }
                 }
+                // New goals only: link a savings item now. Existing goals are linked from Setup → Recurring.
                 if isNew && !savingsItems.isEmpty {
                     Section {
                         Picker("Saving from", selection: $linkTo) {
@@ -164,6 +168,7 @@ struct GoalEditSheet: View {
                         .disabled(goal.name.trimmingCharacters(in: .whitespaces).isEmpty || (Double(target) ?? 0) <= 0)
                 }
             }
+            // Fill the fields. "Saved so far" shows today's total (with paid savings), not the stored starting balance.
             .onAppear {
                 startSaved = isNew ? 0 : store.engine.goalStatus(goal).saved
                 if isNew { goal.name = "" }
@@ -175,6 +180,7 @@ struct GoalEditSheet: View {
         }
     }
 
+    /// Saves the goal, and for a new one links the savings item picked in the form.
     func save() {
         var g = goal
         g.target = r2(Double(target) ?? 0)

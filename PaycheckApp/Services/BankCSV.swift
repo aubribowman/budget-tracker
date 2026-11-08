@@ -10,6 +10,7 @@ struct BankTx: Identifiable, Hashable {
     var isOutflow: Bool { amount < 0 }
 }
 
+/// Why a file couldn't be read, worded for the import screen.
 enum BankCSVError: LocalizedError {
     case empty, noColumns(String)
     var errorDescription: String? {
@@ -24,6 +25,8 @@ enum BankCSVError: LocalizedError {
 /// Reads the CSV files banks let you download. Finds the date, description and
 /// amount columns by their header names, so most banks work without setup.
 enum BankCSV {
+    /// Turns a CSV file's text into transactions. Works with or without a header row.
+    /// `flipSigns` is for banks (mostly credit cards) that list purchases as positive.
     static func parse(_ text: String, flipSigns: Bool = false) throws -> [BankTx] {
         let rows = splitRows(text).filter { !$0.allSatisfy { $0.trimmingCharacters(in: .whitespaces).isEmpty } }
         guard !rows.isEmpty else { throw BankCSVError.empty }
@@ -39,6 +42,8 @@ enum BankCSV {
                 && low.contains { isAmountHeader($0) || $0.contains("debit") || $0.contains("withdraw") }
         }) {
             let head = rows[h].map { $0.lowercased().trimmingCharacters(in: .whitespaces) }
+            // The first column whose header contains one of `preferred` (checked in order),
+            // skipping headers that contain any of `avoiding`.
             func col(_ preferred: [String], avoiding: [String] = []) -> Int? {
                 for p in preferred {
                     if let i = head.firstIndex(where: { $0.contains(p) && !avoiding.contains(where: $0.contains) }) { return i }
@@ -74,6 +79,7 @@ enum BankCSV {
         var out: [BankTx] = []
         var seen: [String: Int] = [:]
         for r in rows[firstData...] {
+            // The text in column `i` of this row, or "" if the row is short or the column wasn't found.
             func cell(_ i: Int?) -> String { i.flatMap { $0 < r.count ? r[$0] : nil }?.trimmingCharacters(in: .whitespaces) ?? "" }
             guard let date = parseDate(cell(dc)) else { continue }
             // Money moved between your own pockets (Crew "subaccount") isn't spending.
@@ -110,6 +116,7 @@ enum BankCSV {
         return out.sorted { $0.date > $1.date }
     }
 
+    /// Headers like "Amount", "Amount (USD)" or "Transaction Amount".
     nonisolated private static func isAmountHeader(_ h: String) -> Bool {
         h == "amount" || h.hasPrefix("amount") || h.hasSuffix(" amount") || h.hasSuffix("amount")
     }
@@ -159,6 +166,8 @@ enum BankCSV {
         return rows
     }
 
+    /// Reads an amount the many ways banks write it: "$1,234.56", "-12.00",
+    /// "(12.00)" or "12.00-" for negative, and "12.00 CR" / "12.00 DR".
     static func parseMoney(_ s: String) -> Double? {
         var t = s.trimmingCharacters(in: .whitespaces)
         guard !t.isEmpty else { return nil }
@@ -187,6 +196,8 @@ enum BankCSV {
         let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime]; return f
     }()
 
+    /// Reads a date in any of `dateFormats` or as a full timestamp, and returns
+    /// midnight local time on that day.
     static func parseDate(_ s: String) -> Date? {
         let full = s.trimmingCharacters(in: .whitespaces)
         // A full timestamp in UTC, like Crew's "2026-10-30 01:04:47.907000Z", is a

@@ -12,11 +12,12 @@ struct UseSavingsSheet: View {
     var startCheck: Check? = nil
 
     @State private var goalId = ""
-    @State private var checkId = ""
+    @State private var checkId = ""     // "yyyy-MM|n", see id(_:)
     @State private var name = ""
     @State private var amount = ""
-    @State private var type = "bill"
+    @State private var type = "bill"   // what the spending counts as on the paycheck
 
+    // Savings can pay for anything except more savings.
     private static let types = ["bill", "subscription", "expense", "debt"]
 
     var body: some View {
@@ -27,10 +28,11 @@ struct UseSavingsSheet: View {
         let checks = options()
         let check = checks.first { id($0) == checkId }
         let value = r2(Double(amount) ?? 0)
-        let tooMuch = value > saved + 0.005
+        let tooMuch = value > saved + 0.005   // can't take out more than the goal has
 
         NavigationStack {
             Form {
+                // Which goal, what for, and how much.
                 Section {
                     Picker("From", selection: $goalId) {
                         ForEach(goals) { g in Text(g.name).tag(g.id) }
@@ -44,6 +46,8 @@ struct UseSavingsSheet: View {
                             .foregroundStyle(tooMuch ? Theme.over : .secondary)
                     }
                 }
+                // Which paycheck it goes on, and what kind of item it shows as there.
+                // The footer spells out exactly what will change.
                 Section {
                     Picker("Paycheck", selection: $checkId) {
                         ForEach(checks, id: \.self) { c in Text("\(DU.short(c.date)) paycheck").tag(id(c)) }
@@ -84,6 +88,7 @@ struct UseSavingsSheet: View {
         return t.isEmpty ? (store.state.goals.first { $0.id == goalId }?.name ?? "Savings") : t
     }
 
+    /// A paycheck as the picker's tag: "yyyy-MM|n".
     private func id(_ c: Check) -> String { "\(c.key)|\(c.n)" }
 
     /// Paychecks from last month through next month (from the budget's start), plus the
@@ -98,6 +103,8 @@ struct UseSavingsSheet: View {
         return out.sorted { $0.date < $1.date }
     }
 
+    /// Picks starting choices: the goal and paycheck it was opened from, or else the first
+    /// goal with money in it and the current paycheck.
     private func setUp() {
         let e = store.engine
         if goalId.isEmpty {
