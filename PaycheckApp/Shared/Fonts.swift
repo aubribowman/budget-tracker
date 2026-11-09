@@ -19,9 +19,23 @@ enum AppFonts {
         }
     }
 
+    /// How much bigger to draw text: the View → Zoom level on Mac (see MacZoom in
+    /// Platform.swift), always 1 on iPhone and iPad, which use the system's text size.
+    static var scale: CGFloat {
+        #if os(macOS)
+        ZoomLevel.shared.value
+        #else
+        1
+        #endif
+    }
+
     /// The system's size for each text style at the default text setting, so the new
-    /// fonts line up with what each style looked like before.
+    /// fonts line up with what each style looked like before. Includes the Mac zoom.
     static func size(_ s: Font.TextStyle) -> CGFloat {
+        baseSize(s) * scale
+    }
+
+    private static func baseSize(_ s: Font.TextStyle) -> CGFloat {
         #if os(macOS)
         switch s {
         case .largeTitle: 26; case .title: 22; case .title2: 17; case .title3: 15
@@ -61,7 +75,7 @@ extension Font {
 
     /// Space Grotesk at a set size that still grows with the user's text size.
     static func display(size: CGFloat, weight: Font.Weight = .bold, relativeTo style: Font.TextStyle = .largeTitle) -> Font {
-        .custom(AppFonts.display, size: size, relativeTo: style).weight(weight)
+        .custom(AppFonts.display, size: size * AppFonts.scale, relativeTo: style).weight(weight)
     }
 }
 

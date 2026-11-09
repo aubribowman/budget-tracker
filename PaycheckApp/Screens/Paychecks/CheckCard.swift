@@ -12,6 +12,11 @@ struct CheckCard: View {
     @State private var usingSavings = false
     @AppStorage(Fold.key) private var folded = ""
 
+    /// Folds or opens this paycheck card. Saved, so it stays that way next launch.
+    private func toggleCard(_ id: String) {
+        withAnimation(.snappy) { folded = Fold.toggled(folded, id) }
+    }
+
     var body: some View {
         let e = store.engine
         let t = e.totals(check.key, check.n)
@@ -41,9 +46,14 @@ struct CheckCard: View {
                         }
                     }.buttonStyle(.plain)
                 }
-                Button { withAnimation(.snappy) { folded = Fold.toggled(folded, cardId) } } label: { FoldChevron(folded: cardFolded) }
+                Button { toggleCard(cardId) } label: { FoldChevron(folded: cardFolded) }
                     .buttonStyle(.plain)
             }
+            // Tapping anywhere on the header folds the card, like "To pay now" and the
+            // type rows, not just the small arrow. The take-home amount is its own button
+            // (to edit the pay), and a button inside wins over this tap.
+            .contentShape(Rectangle())
+            .onTapGesture { toggleCard(cardId) }
 
             if !cardFolded {
             let left = Text(money(t.left)).heroNumber(t.left).foregroundStyle(t.left < 0 ? Theme.over : .primary)

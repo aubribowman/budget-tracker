@@ -26,6 +26,10 @@ struct HomeView: View {
                         .padding(.top, 4)
                     #endif
                     PageTitle(greeting)
+                    // In the last 2 days before this copy of the app stops opening (free Apple ID installs).
+                    if let expires = AppExpiry.date, AppExpiry.isSoon() {
+                        ExpiryWarning(expires: expires)
+                    }
                     if store.isEmpty {
                         // No budget yet: welcome and ways to start.
                         EmptyStart()
@@ -446,6 +450,25 @@ private struct ReviewPrompt: View {
             .card()
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Warns that this copy of the app is about to stop opening, and how to fix it.
+private struct ExpiryWarning: View {
+    let expires: Date
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "clock.badge.exclamationmark").font(.ui(.title2)).foregroundStyle(Theme.over)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Reinstall before \(AppExpiry.label(expires))").font(.ui(.headline))
+                Text("Apps installed with a free Apple ID stop opening after 7 days. Run it from Xcode again to reset that. Your budget stays.")
+                    .font(.ui(.subheadline)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card()
+        .accessibilityElement(children: .combine)
     }
 }
 

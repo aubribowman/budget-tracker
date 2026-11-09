@@ -92,7 +92,7 @@ The app's ID is already taken by the original developer's account, so set your o
 
 That one setting sets the app's ID (`com.yourname.PaycheckApp`), the widget's (`com.yourname.PaycheckApp.PaycheckWidget`) and the App Group they share (`group.com.yourname.PaycheckApp`). The code works out the App Group from the app's ID, so there's nothing else to change.
 
-With a free Apple ID, the app stops opening after 7 days. Run it from Xcode again to reset that. A paid Apple Developer account ($99/year) removes the limit and adds TestFlight.
+With a free Apple ID, the app stops opening after 7 days. Run it from Xcode again to reset that; your budget stays. The app reads its own expiry date and reminds you: a notification two days and one day before, a warning on Home in the last two days, and the date under **Setup → Reminders → Remind me to reinstall**, where you can turn the notification off. A paid Apple Developer account ($99/year) removes the limit and adds TestFlight.
 
 ## Run it on your Mac
 

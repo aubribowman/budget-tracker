@@ -9,6 +9,7 @@ struct SettingsView: View {
     @AppStorage(Zoom.key) private var zoom = 1.0
     @AppStorage(Notifier.enabledKey) private var remindersOn = false
     @AppStorage(Notifier.hourKey) private var reminderHour = 9
+    @AppStorage(AppExpiry.reminderKey) private var expiryReminderOn = true
     @State private var importing = false
     @State private var pickingFolder = false
     @State private var foundSync: BudgetState?
@@ -53,8 +54,25 @@ struct SettingsView: View {
                         }
                         .onChange(of: reminderHour) { _, _ in Task { await Notifier.reschedule(store.engine) } }
                     }
+                    // Only on installs that expire (run from Xcode with a free Apple ID).
+                    if let expires = AppExpiry.date {
+                        Toggle(isOn: $expiryReminderOn) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Remind me to reinstall")
+                                Text("This copy stops opening \(AppExpiry.label(expires)).")
+                                    .font(.ui(.caption)).foregroundStyle(.secondary)
+                            }
+                        }
+                        .onChange(of: expiryReminderOn) { _, on in
+                            Task {
+                                if on { expiryReminderOn = await Notifier.requestPermission() }
+                                await Notifier.reschedule(store.engine)
+                            }
+                        }
+                    }
                 } header: { Text("Reminders") } footer: {
-                    Text("A heads-up the day before each unpaid bill is due, and on payday with what to pay from that check.")
+                    Text("A heads-up the day before each unpaid bill is due, and on payday with what to pay from that check."
+                         + (AppExpiry.date == nil ? "" : " The reinstall reminder comes two days and one day before the app expires."))
                 }
 
                 Section {

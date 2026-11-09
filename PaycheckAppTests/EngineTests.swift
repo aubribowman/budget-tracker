@@ -479,3 +479,73 @@ struct MerchantBadgeTests {
         #expect(Set(["kroger", "aldi", "shell", "target", "concert"].map { "\(Merchant($0)!.color)" }).count > 1)
     }
 }
+
+/// Reading when a free Apple ID install stops opening (AppExpiry.swift).
+struct AppExpiryTests {
+    /// A made-up profile: binary signature bytes around a property list, like the real file.
+    func profile(_ plist: String) -> Data {
+        Data([0x30, 0x80, 0x06, 0x09, 0x00, 0xFF]) + Data(plist.utf8) + Data([0x00, 0xA0, 0x82])
+    }
+
+    @Test func readsExpirationDate() {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0"><dict>
+        <key>CreationDate</key><date>2026-11-04T02:01:16Z</date>
+        <key>ExpirationDate</key><date>2026-11-11T02:01:16Z</date>
+        </dict></plist>
+        """
+        let d = AppExpiry.expirationDate(inProfile: profile(xml))
+        #expect(d == ISO8601DateFormatter().date(from: "2026-11-11T02:01:16Z"))
+    }
+
+    @Test func noDateInJunk() {
+        #expect(AppExpiry.expirationDate(inProfile: Data("not a profile".utf8)) == nil)
+    }
+
+    @Test func labelSaysTodayAndTomorrow() {
+        let hour = 3600.0
+        let now = DU.date(2026, 11, 9).addingTimeInterval(9 * hour)
+        #expect(AppExpiry.label(DU.date(2026, 11, 9).addingTimeInterval(21 * hour), now: now).hasPrefix("today at"))
+        #expect(AppExpiry.label(DU.date(2026, 11, 10).addingTimeInterval(21 * hour), now: now).hasPrefix("tomorrow at"))
+    }
+}
+
+#if os(macOS)
+import SwiftUI
+import Observation
+
+/// Mac zoom (MacZoom in Platform.swift) works by making fonts bigger, so clicks always
+/// land where you aim. These check the fonts grow and that screens hear about a change.
+@MainActor
+@Suite(.serialized)
+struct MacZoomTests {
+    /// The width of a line of app text, drawn at the current zoom.
+    func textWidth() -> CGFloat {
+        let r = ImageRenderer(content: Text("Paycheck Plan 1,234.56").font(.ui(.body)).fixedSize())
+        return r.nsImage?.size.width ?? 0
+    }
+
+    @Test func zoomMakesTextBigger() {
+        let old = ZoomLevel.shared.value
+        defer { ZoomLevel.shared.value = old }
+        ZoomLevel.shared.value = 1
+        let normal = textWidth()
+        ZoomLevel.shared.value = 1.5
+        let zoomed = textWidth()
+        #expect(normal > 0)
+        #expect(zoomed > normal * 1.3)
+    }
+
+    @Test func changingZoomRedrawsText() {
+        let old = ZoomLevel.shared.value
+        defer { ZoomLevel.shared.value = old }
+        var changed = false
+        // Any view that reads a font while drawing is tracked like this, so it redraws.
+        withObservationTracking { _ = Font.ui(.body) } onChange: { changed = true }
+        ZoomLevel.shared.value = old + 0.15
+        #expect(changed)
+    }
+}
+#endif

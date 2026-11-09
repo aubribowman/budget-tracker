@@ -1,9 +1,10 @@
 import Foundation
 import UserNotifications
 
-/// Bill and payday reminders. Rebuilt whenever the budget changes (see Store.scheduleSave):
+/// Bill and payday reminders, plus the reminder to reinstall before the app expires
+/// (AppExpiry.swift). Rebuilt whenever the budget changes (see Store.scheduleSave):
 /// all pending reminders are removed and the next 35 days are scheduled again.
-/// The on/off switch and hour live in UserDefaults, not the budget, so they stay per device.
+/// The on/off switches and hour live in UserDefaults, not the budget, so they stay per device.
 enum Notifier {
     static let enabledKey = "remindersOn"
     static let hourKey = "reminderHour"           // hour of the day reminders go off, 0–23
@@ -22,6 +23,7 @@ enum Notifier {
         // iOS keeps at most 64 pending notifications per app, so this sends the soonest 60.
         let center = UNUserNotificationCenter.current()
         center.removeAllPendingNotificationRequests()
+        await scheduleExpiry(center)
         guard enabled else { return }
 
         let today = DU.today, horizon = DU.addDays(today, 35)
@@ -52,6 +54,7 @@ enum Notifier {
             d = DU.addDays(d, 1)
         }
 
+        // 60 plus up to 2 reinstall reminders stays under the limit.
         for (fire, id, title, body) in items.sorted(by: { $0.0 < $1.0 }).prefix(60) {
             var comps = DU.cal.dateComponents([.year, .month, .day], from: fire)
             comps.hour = hour
@@ -60,6 +63,38 @@ enum Notifier {
             content.body = body
             content.sound = .default
             let req = UNNotificationRequest(identifier: id, content: content,
+                                            trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false))
+            try? await center.add(req)
+        }
+    }
+
+    /// Called at launch. A reinstall doesn't change the budget, so nothing else would set
+    /// the reinstall reminders up again. Asks for permission first (iOS only shows the
+    /// prompt once). Does nothing on builds that don't expire.
+    @MainActor
+    static func setUpExpiryReminder(_ e: Engine) async {
+        guard AppExpiry.date != nil, AppExpiry.reminderOn else { return }
+        guard await requestPermission() else { return }
+        await reschedule(e)
+    }
+
+    /// Two reminders to reinstall before the app expires: at the reminder hour on two of the
+    /// last three days (the expiry day counts if it's still more than an hour before expiry).
+    /// Runs even with bill reminders off, since it has its own switch.
+    @MainActor
+    private static func scheduleExpiry(_ center: UNUserNotificationCenter) async {
+        guard AppExpiry.reminderOn, let expires = AppExpiry.date else { return }
+        let now = Date()
+        let day = DU.startOfDay(expires)
+        let times = [-2, -1, 0].compactMap { DU.cal.date(bySettingHour: hour, minute: 0, second: 0, of: DU.addDays(day, $0)) }
+            .filter { $0 > now && $0 < expires.addingTimeInterval(-3600) }
+        for t in times.suffix(2) {
+            let content = UNMutableNotificationContent()
+            content.title = "Reinstall Paycheck Plan"
+            content.body = "This copy stops opening \(AppExpiry.label(expires, now: t)). Run it from Xcode again before then. Your budget stays."
+            content.sound = .default
+            let comps = DU.cal.dateComponents([.year, .month, .day, .hour, .minute], from: t)
+            let req = UNNotificationRequest(identifier: "expiry-\(DU.iso(t))", content: content,
                                             trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false))
             try? await center.add(req)
         }

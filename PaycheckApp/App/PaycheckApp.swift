@@ -56,6 +56,8 @@ struct RootView: View {
                 }
             }
             .task { if locked { unlock() } }
+            // Free Apple ID installs stop opening after 7 days; remind before that.
+            .task { await Notifier.setUpExpiryReminder(store.engine) }
             .onChange(of: phase) { _, p in
                 if p == .background && lockOn { locked = true }
                 if p == .active && locked { unlock() }

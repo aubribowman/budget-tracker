@@ -138,22 +138,33 @@ enum Zoom {
 }
 
 #if os(macOS)
-/// Browser-style zoom: lays the screen out as if the window were smaller (or bigger),
-/// then scales it to fill the window. Text re-flows the way it does in Safari, and
-/// clicks still land in the right place. Text size settings don't apply on Mac, so this
-/// is the way to make everything bigger.
+/// The current Mac zoom, read by the font helpers in Fonts.swift. It's @Observable, so
+/// every view that used a font while drawing redraws when the zoom changes.
+@Observable final class ZoomLevel {
+    static let shared = ZoomLevel()
+    var value: Double = {
+        let z = UserDefaults.standard.double(forKey: Zoom.key)
+        return z > 0 ? z : 1
+    }()
+}
+
+/// Mail-style zoom: makes the app's text bigger or smaller and lets the page lay out
+/// again at that size. Text size settings don't apply on Mac, so this is the way to
+/// make things bigger.
+///
+/// Zooming by scaling the whole page (`scaleEffect`) looks the same but breaks clicks:
+/// a Mac scroll view works out where you clicked from the unscaled layout, so clicks
+/// land off target, more so further down the page. Scaling the fonts avoids that.
+/// Icons drawn at a fixed size (like item badges) stay the same size.
 private struct MacZoom: ViewModifier {
     @AppStorage(Zoom.key) private var zoom = 1.0
 
     func body(content: Content) -> some View {
-        // Same structure at every zoom (100% included), so zooming never resets the
-        // current tab or scroll position.
-        GeometryReader { g in
-            content
-                .frame(width: g.size.width / zoom, height: g.size.height / zoom)
-                .scaleEffect(zoom, anchor: .topLeading)
-                .frame(width: g.size.width, height: g.size.height, alignment: .topLeading)
-        }
+        content
+            // Text that doesn't pick a font (form labels, buttons) follows the zoom too.
+            .font(.ui(.body))
+            // The menu commands and Setup's picker change the stored zoom; pass it on.
+            .onChange(of: zoom, initial: true) { _, z in ZoomLevel.shared.value = z }
     }
 }
 
