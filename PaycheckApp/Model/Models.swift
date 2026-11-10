@@ -301,6 +301,7 @@ struct Debt: Codable, Identifiable, Equatable {
     var asOf: String = DU.iso(Date())     // yyyy-MM-dd
     var asOfAt: String? = nil             // when the balance was entered (DU.stamp); app only
     var limit: Double? = nil              // credit limit, for utilization
+    var statementDay: Int? = nil          // day of the month the statement closes, 1–31; app only
 
     init() {}
 
@@ -315,6 +316,18 @@ struct Debt: Codable, Identifiable, Equatable {
         asOf = c.str(.asOf) ?? DU.iso(Date())
         asOfAt = c.str(.asOfAt)
         limit = c.dbl(.limit)
+        statementDay = c.int(.statementDay).flatMap { (1...31).contains($0) ? $0 : nil }
+    }
+
+    /// The next day the statement closes, today included, or nil if no day is set.
+    /// A day past the end of a short month (the 31st in November) is that month's last day.
+    func nextStatement(from day: Date = DU.today) -> Date? {
+        guard let sd = statementDay else { return nil }
+        let (y, m) = DU.monthOf(day)
+        let this = DU.date(y, m, Swift.min(sd, DU.lastDay(y, m)))
+        if this >= DU.startOfDay(day) { return this }
+        let next = DU.parseYM(DU.addMonths(DU.ym(day), 1))
+        return DU.date(next.y, next.m, Swift.min(sd, DU.lastDay(next.y, next.m)))
     }
 }
 

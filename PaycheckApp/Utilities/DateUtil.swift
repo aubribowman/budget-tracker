@@ -97,6 +97,14 @@ enum DU {
     static func monthLabel(_ k: String, short: Bool = false) -> String {
         (short ? monthShortFmt : monthFmt).string(from: firstOfMonth(k))
     }
+    /// "today", "tomorrow", or a day like "Mon, Nov 23", for statement closing dates.
+    static func statementLabel(_ d: Date) -> String {
+        switch days(today, d) {
+        case 0: return "today"
+        case 1: return "tomorrow"
+        default: return dayLabel(d)
+        }
+    }
     /// Just the month's name: "November".
     static func monthName(_ k: String) -> String { monthOnlyFmt.string(from: firstOfMonth(k)) }
     /// "Nov 4–17", or "Nov 28–Dec 11" across months.

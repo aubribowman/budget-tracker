@@ -71,7 +71,7 @@ struct SettingsView: View {
                         }
                     }
                 } header: { Text("Reminders") } footer: {
-                    Text("A heads-up the day before each unpaid bill is due, and on payday with what to pay from that check."
+                    Text("A heads-up the day before each unpaid bill is due, the day before a card's statement closes, and on payday with what to pay from that check."
                          + (AppExpiry.date == nil ? "" : " The reinstall reminder comes two days and one day before the app expires."))
                 }
 

@@ -166,6 +166,11 @@ struct PayoffView: View {
                                     if let m = sim.payoff[d.id], b > 0.005 { Text("Gone by \(DU.monthLabel(DU.addMonths(now, m), short: true))") }
                                 }
                                 .font(.ui(.caption)).foregroundStyle(.secondary)
+                                // Cards with a statement day set (in the debt editor).
+                                if b > 0.005, let close = d.nextStatement() {
+                                    Label("Statement closes \(DU.statementLabel(close))", systemImage: "calendar")
+                                        .font(.ui(.caption)).foregroundStyle(.secondary)
+                                }
                                 if let lim = d.limit, lim > 0 {
                                     let u = b / lim * 100
                                     Text("Using \(Int(u.rounded()))% of \(money0(lim)) limit").font(.ui(.caption))

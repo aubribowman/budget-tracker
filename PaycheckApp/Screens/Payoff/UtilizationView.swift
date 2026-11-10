@@ -4,6 +4,7 @@ import SwiftUI
 struct Utilization {
     /// One credit card with a limit set.
     struct Card: Identifiable { let id: String; let name: String; let balance: Double; let limit: Double
+        var statement: Date? = nil   // next statement closing day, if set
         var pct: Double { limit > 0 ? balance / limit * 100 : 0 }
         /// Payment that brings this card to `target` percent.
         func toReach(_ target: Double) -> Double { max(0, balance - limit * target / 100) }
@@ -19,7 +20,7 @@ struct Utilization {
     init(_ store: Store) {
         cards = store.state.debts.compactMap { d in
             guard let lim = d.limit, lim > 0 else { return nil }
-            return Card(id: d.id, name: d.name, balance: store.engine.curBal(d), limit: lim)
+            return Card(id: d.id, name: d.name, balance: store.engine.curBal(d), limit: lim, statement: d.nextStatement())
         }
     }
 
@@ -101,10 +102,14 @@ struct UtilizationView: View {
                         }
                         UtilBar(pct: c.pct)
                         Text("\(money(c.balance)) of \(money0(c.limit)) limit").font(.ui(.caption)).foregroundStyle(.secondary)
+                        // With a statement day, say when to pay by: the balance on that day is what's reported.
+                        let by = c.statement.map { " before the statement closes \(DU.statementLabel($0))" } ?? ""
                         if c.pct >= 30 {
-                            Text("Pay \(money(c.toReach(30))) to get this card under 30%.").font(.ui(.caption)).foregroundStyle(Theme.over)
+                            Text("Pay \(money(c.toReach(30)))\(by) to get this card under 30%.").font(.ui(.caption)).foregroundStyle(Theme.over)
                         } else if c.pct >= 10 {
-                            Text("Pay \(money(c.toReach(10))) to get it under 10%.").font(.ui(.caption)).foregroundStyle(.secondary)
+                            Text("Pay \(money(c.toReach(10)))\(by) to get it under 10%.").font(.ui(.caption)).foregroundStyle(.secondary)
+                        } else if let s = c.statement {
+                            Text("Statement closes \(DU.statementLabel(s)).").font(.ui(.caption)).foregroundStyle(.secondary)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading).card()

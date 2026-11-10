@@ -1,7 +1,7 @@
 import Foundation
 import UserNotifications
 
-/// Bill and payday reminders, plus the reminder to reinstall before the app expires
+/// Bill, payday and card statement reminders, plus the reminder to reinstall before the app expires
 /// (AppExpiry.swift). Rebuilt whenever the budget changes (see Store.scheduleSave):
 /// all pending reminders are removed and the next 35 days are scheduled again.
 /// The on/off switches and hour live in UserDefaults, not the budget, so they stay per device.
@@ -40,6 +40,26 @@ enum Notifier {
                     let body = l.aside ? "\(money(l.amount)) is set aside for it." : "\(money(l.amount)) from your \(DU.short(c.date)) paycheck."
                     items.append((fire, "bill-\(l.id)-\(DU.iso(due))", title, body))
                 }
+            }
+        }
+        // Card statements: the day before each one closes, while there's a balance. The
+        // balance on that day is what gets reported to credit bureaus, so this is the time
+        // to pay it down. Up to two per card fit in the 35 days.
+        for debt in e.s.debts {
+            let bal = e.curBal(debt)
+            guard bal > 0.005, var close = debt.nextStatement(from: DU.addDays(today, 1)) else { continue }
+            while close <= horizon {
+                var body = "Balance today: \(money(bal))."
+                if let lim = debt.limit, lim > 0 {
+                    let pct = Int((bal / lim * 100).rounded())
+                    let to30 = max(0, bal - lim * 0.3)
+                    body += " That's \(pct)% of your limit" + (to30 > 0.005 ? "; pay \(money(to30)) to report under 30%." : ".")
+                } else {
+                    body += " Paying before it closes lowers what's reported."
+                }
+                items.append((DU.addDays(close, -1), "stmt-\(debt.id)-\(DU.iso(close))", "\(debt.name) statement closes tomorrow", body))
+                guard let next = debt.nextStatement(from: DU.addDays(close, 1)) else { break }
+                close = next
             }
         }
         // Paydays.

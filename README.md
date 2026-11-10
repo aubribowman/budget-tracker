@@ -50,11 +50,11 @@ Shown with sample data.
 
 - **Bank import**: reads the CSV file you download from your bank and suggests where each transaction goes. See [Import from your bank](#import-from-your-bank).
 - **Savings goals**: a target, what's saved, an optional target date, and whether you're on track. Link a savings item on your paychecks to a goal, and marking it paid moves the goal forward. When it's time to spend what you saved, **Use savings** (on a goal or a paycheck) adds the money to that paycheck as income, marks what it paid for as paid, and takes it off the goal, so what's left to spend doesn't change.
-- **Credit utilization**: how much of your credit limits you're using overall and per card, and what to pay to get under 30% and 10%. Add a **Credit limit** to a card in its debt settings.
+- **Credit utilization**: how much of your credit limits you're using overall and per card, and what to pay to get under 30% and 10%. Add a **Credit limit** to a card in its debt settings. Set **Statement closes** there too, and the card shows its next closing date, the utilization screen says what to pay before it, and you get a reminder the day before (the balance on that day is what's reported to credit bureaus).
 - **Monthly review**: plan vs. actual, each category over or under, bills not marked paid, debt paid, savings, and a comparison with the month before. Early each month, Home reminds you that last month's review is ready.
 - **Windfall planner**: for a tax refund or bonus. On Home, tap **Got extra money? Plan it**. It suggests a split, shows how much sooner you'll be debt-free and how much interest you'll save, and can apply it to your balances.
 - **Widgets**: small and medium home screen widgets on iPhone and iPad, plus lock screen widgets. They show what's left on your paycheck, bills due, days to payday, spending left, and your top goal.
-- **Reminders**: a notification the day before each unpaid bill is due, and one on payday. Turn on in **Setup → Reminders**.
+- **Reminders**: a notification the day before each unpaid bill is due, the day before a card's statement closes, and on payday. Turn on in **Setup → Reminders**.
 - **Face ID lock**: asks for Face ID or your passcode when you come back to the app, and hides balances in the app switcher. Turn on in **Setup → Privacy**.
 - **Badges** on the tabs: Paychecks counts bills to pay now or past due, Purchases counts spending categories that are over, and Month shows a dot while last month's review is waiting.
 - **Sidebar on Mac and iPad**, and a tab bar on iPhone.

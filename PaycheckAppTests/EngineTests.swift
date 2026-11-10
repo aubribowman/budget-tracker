@@ -549,3 +549,38 @@ struct MacZoomTests {
     }
 }
 #endif
+
+/// When a card's statement closes next (Debt.nextStatement).
+struct StatementDayTests {
+    func card(_ day: Int?) -> Debt { var d = Debt(); d.statementDay = day; return d }
+
+    @Test func laterThisMonth() {
+        #expect(card(23).nextStatement(from: DU.date(2027, 4, 10)) == DU.date(2027, 4, 23))
+    }
+
+    @Test func todayCounts() {
+        #expect(card(10).nextStatement(from: DU.date(2027, 4, 10)) == DU.date(2027, 4, 10))
+    }
+
+    @Test func passedRollsToNextMonth() {
+        #expect(card(5).nextStatement(from: DU.date(2027, 4, 10)) == DU.date(2027, 5, 5))
+        #expect(card(5).nextStatement(from: DU.date(2027, 12, 10)) == DU.date(2028, 1, 5))
+    }
+
+    @Test func shortMonthsUseTheLastDay() {
+        #expect(card(31).nextStatement(from: DU.date(2027, 11, 2)) == DU.date(2027, 11, 30))
+        #expect(card(30).nextStatement(from: DU.date(2027, 2, 2)) == DU.date(2027, 2, 28))
+    }
+
+    @Test func notSet() {
+        #expect(card(nil).nextStatement(from: DU.date(2027, 4, 10)) == nil)
+    }
+
+    /// Saved as "statementDay" only when set, so the web app's file stays the same otherwise.
+    @Test func savesOnlyWhenSet() throws {
+        let without = String(decoding: try JSONEncoder().encode(card(nil)), as: UTF8.self)
+        #expect(!without.contains("statementDay"))
+        let back = try JSONDecoder().decode(Debt.self, from: JSONEncoder().encode(card(17)))
+        #expect(back.statementDay == 17)
+    }
+}

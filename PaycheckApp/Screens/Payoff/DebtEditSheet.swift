@@ -30,6 +30,18 @@ struct DebtEditSheet: View {
                 } footer: {
                     Text("Changing the balance resets tracking to today. Payments you mark paid after today come off it automatically.")
                 }
+                // Cards: the day each month's statement closes, for a reminder before it.
+                // Saved straight into `debt`, so save() needs nothing extra.
+                Section {
+                    Picker("Statement closes", selection: $debt.statementDay) {
+                        Text("Not set").tag(Int?.none)
+                        ForEach(1...31, id: \.self) { Text("The \(DU.ordinal($0))").tag(Int?.some($0)) }
+                    }
+                } footer: {
+                    Text(debt.statementDay.flatMap { _ in debt.nextStatement() }.map {
+                        "Next statement closes \(DU.dayLabel($0)). With bill reminders on, you'll get a heads-up the day before, since paying before then lowers the balance reported to credit bureaus."
+                    } ?? "Find the closing date on your statement. With bill reminders on, you'll get a heads-up the day before it closes.")
+                }
                 if !isNew {
                     Button("Delete this debt", role: .destructive) { confirmDelete = true }
                 }
