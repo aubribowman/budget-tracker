@@ -254,6 +254,13 @@ final class Store: ObservableObject {
         editOverride(line) { o in o.debtId = debtId; o.debtLocked = true }
     }
 
+    /// Links a one-time debt payment to a debt ("" unlinks it).
+    func setOneTimeDebt(_ line: Line, _ debtId: String) {
+        editCell(line.homeKey, line.home) { c in
+            if let i = c.extras.firstIndex(where: { $0.id == line.id }) { c.extras[i].debtId = debtId.isEmpty ? nil : debtId }
+        }
+    }
+
     /// Deletes a one-time item. If it was paid for with savings, the matching income goes
     /// too and the money goes back on the goal.
     func deleteOneTime(_ line: Line) {
@@ -265,9 +272,11 @@ final class Store: ObservableObject {
     }
 
     /// Adds a one-time item (a gift, a repair) to one paycheck only.
-    func addOneTime(key: String, n: Int, name: String, type: String, amount: Double) {
+    /// A debt payment can name the debt it pays, so marking it paid lowers that debt's balance.
+    func addOneTime(key: String, n: Int, name: String, type: String, amount: Double, debtId: String? = nil) {
         editCell(key, n) { c in
             var x = OneTime(); x.name = name; x.type = type; x.amount = amount
+            if type == "debt", let d = debtId, !d.isEmpty { x.debtId = d }
             c.extras.append(x)
         }
     }
@@ -307,8 +316,8 @@ final class Store: ObservableObject {
     // MARK: Using savings
 
     /// Spends money from a savings goal on a paycheck. See BudgetState+Savings.swift.
-    func useSavings(goalId: String, amount: Double, for name: String, type: String, on check: Check) {
-        update { $0.useSavings(goalId: goalId, amount: amount, for: name, type: type, key: check.key, n: check.n) }
+    func useSavings(goalId: String, amount: Double, for name: String, type: String, debtId: String? = nil, on check: Check) {
+        update { $0.useSavings(goalId: goalId, amount: amount, for: name, type: type, debtId: debtId, key: check.key, n: check.n) }
     }
 
     /// True if this income item or one-time item is part of money taken from savings.
@@ -372,6 +381,12 @@ final class Store: ObservableObject {
         update { s in
             s.debts.removeAll { $0.id == id }
             for i in s.recurring.indices where s.recurring[i].debtId == id { s.recurring[i].debtId = "" }
+            for key in s.months.keys {
+                for (n, var c) in s.months[key] ?? [:] where c.extras.contains(where: { $0.debtId == id }) {
+                    for i in c.extras.indices where c.extras[i].debtId == id { c.extras[i].debtId = nil }
+                    s.months[key]?[n] = c
+                }
+            }
         }
     }
 

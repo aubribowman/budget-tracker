@@ -8,12 +8,19 @@ struct OneTimeSheet: View {
     @State private var name = ""
     @State private var type = "expense"
     @State private var amount = ""
+    @State private var debtId = ""   // debt payments: which debt it pays down on Payoff
 
     var body: some View {
         NavigationStack {
             Form {
                 TextField("What is it?", text: $name)
                 Picker("Type", selection: $type) { ForEach(TypeInfo.order, id: \.self) { Text(TypeInfo.of($0).label).tag($0) } }
+                if type == "debt" && !store.state.debts.isEmpty {
+                    Picker("Pays down", selection: $debtId) {
+                        Text("Not linked").tag("")
+                        ForEach(store.state.debts) { Text($0.name).tag($0.id) }
+                    }
+                }
                 TextField("Amount", text: $amount).decimalPad()
             }
             .navigationTitle("One-time item")
@@ -21,7 +28,7 @@ struct OneTimeSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
-                        if let v = Double(amount), !name.isEmpty { store.addOneTime(key: check.key, n: check.n, name: name, type: type, amount: v) }
+                        if let v = Double(amount), !name.isEmpty { store.addOneTime(key: check.key, n: check.n, name: name, type: type, amount: v, debtId: debtId) }
                         dismiss()
                     }.disabled(name.isEmpty || Double(amount) == nil)
                 }

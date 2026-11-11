@@ -16,6 +16,7 @@ struct UseSavingsSheet: View {
     @State private var name = ""
     @State private var amount = ""
     @State private var type = "bill"   // what the spending counts as on the paycheck
+    @State private var debtId = ""     // debt payments: which debt it pays down on Payoff
 
     // Savings can pay for anything except more savings.
     private static let types = ["bill", "subscription", "expense", "debt"]
@@ -55,9 +56,15 @@ struct UseSavingsSheet: View {
                     Picker("Counts as", selection: $type) {
                         ForEach(Self.types, id: \.self) { Text(TypeInfo.of($0).label).tag($0) }
                     }
+                    if type == "debt" && !store.state.debts.isEmpty {
+                        Picker("Pays down", selection: $debtId) {
+                            Text("Not linked").tag("")
+                            ForEach(store.state.debts) { Text($0.name).tag($0.id) }
+                        }
+                    }
                 } footer: {
                     if let g = goal, let c = check, value > 0.004, !tooMuch {
-                        Text("Adds \(money(value)) to your \(DU.short(c.date)) paycheck from \(g.name) and marks \(label) paid, so what's left to spend doesn't change. \(g.name) goes from \(money(saved)) to \(money(saved - value)).")
+                        Text("Adds \(money(value)) to your \(DU.short(c.date)) paycheck from \(g.name) and marks \(label) paid, so what's left to spend doesn't change. \(g.name) goes from \(money(saved)) to \(money(saved - value)).\(debtNote)")
                     } else {
                         Text("The money is added to that paycheck and what it paid for is marked paid, so what's left to spend doesn't change. Delete either one later to put the money back.")
                     }
@@ -70,7 +77,7 @@ struct UseSavingsSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Use") {
                         if let c = check {
-                            store.useSavings(goalId: goalId, amount: value, for: label, type: type, on: c)
+                            store.useSavings(goalId: goalId, amount: value, for: label, type: type, debtId: debtId, on: c)
                         }
                         dismiss()
                     }
@@ -86,6 +93,12 @@ struct UseSavingsSheet: View {
     private var label: String {
         let t = name.trimmingCharacters(in: .whitespaces)
         return t.isEmpty ? (store.state.goals.first { $0.id == goalId }?.name ?? "Savings") : t
+    }
+
+    /// For a linked debt payment: " <Debt> goes down by $X on Payoff."
+    private var debtNote: String {
+        guard type == "debt", let d = store.state.debts.first(where: { $0.id == debtId }) else { return "" }
+        return " \(d.name) goes down by \(money(r2(Double(amount) ?? 0))) on Payoff."
     }
 
     /// A paycheck as the picker's tag: "yyyy-MM|n".

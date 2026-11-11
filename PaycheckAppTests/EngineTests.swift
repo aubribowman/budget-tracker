@@ -584,3 +584,63 @@ struct StatementDayTests {
         #expect(back.statementDay == 17)
     }
 }
+
+/// Savings or one-time items used as a debt payment and linked to a debt lower that debt's
+/// balance on Payoff. These use this month, since a payment marked paid "now" only counts
+/// on paychecks Payoff looks at (through next month).
+@MainActor
+struct DebtFromSavingsTests {
+    func budget() -> BudgetState {
+        var s = semiBudget()
+        s.settings.startMonth = DU.ym(Date())
+        var g = Goal(); g.name = "Emergency fund"; g.target = 1000; g.balance = 600; g.asOf = "2020-01-01"
+        var d = Debt(); d.name = "Card"; d.balance = 1000; d.min = 50; d.asOf = "2020-01-01"
+        s.goals = [g]; s.debts = [d]
+        return s
+    }
+
+    @Test func savingsLinkedToADebtLowersItsBalance() {
+        var s = budget()
+        s.useSavings(goalId: s.goals[0].id, amount: 300, for: "Card payment", type: "debt",
+                     debtId: s.debts[0].id, key: DU.ym(Date()), n: 1)
+        let e = Engine(s)
+        #expect(e.curBal(s.debts[0]) == 700)
+        #expect(s.goals[0].balance == 300)
+    }
+
+    @Test func savingsNotLinkedLeavesTheBalance() {
+        var s = budget()
+        s.useSavings(goalId: s.goals[0].id, amount: 300, for: "Card payment", type: "debt", key: DU.ym(Date()), n: 1)
+        #expect(Engine(s).curBal(s.debts[0]) == 1000)
+    }
+
+    @Test func onlyDebtPaymentsKeepTheLink() {
+        var s = budget()
+        s.useSavings(goalId: s.goals[0].id, amount: 300, for: "Car repair", type: "bill",
+                     debtId: s.debts[0].id, key: DU.ym(Date()), n: 1)
+        #expect(s.months[DU.ym(Date())]?["1"]?.extras.first?.debtId == nil)
+        #expect(Engine(s).curBal(s.debts[0]) == 1000)
+    }
+
+    @Test func removingTheUsePutsTheBalanceBack() throws {
+        var s = budget()
+        let key = DU.ym(Date())
+        let result = s.useSavings(goalId: s.goals[0].id, amount: 300, for: "Card payment", type: "debt",
+                                  debtId: s.debts[0].id, key: key, n: 1)
+        let id = try #require(result)
+        s.removeSavingsUse(key: key, n: 1, id: id)
+        #expect(Engine(s).curBal(s.debts[0]) == 1000)
+        #expect(s.goals[0].balance == 600)
+    }
+}
+
+/// Amounts typed into the debt sheet, the way people write them.
+@MainActor
+struct TypedAmountTests {
+    @Test func commasDollarSignsAndSpacesAreRead() {
+        #expect(DebtEditSheet.number("1,250.00") == 1250)
+        #expect(DebtEditSheet.number("$1,250") == 1250)
+        #expect(DebtEditSheet.number(" 980.5 ") == 980.5)
+        #expect(DebtEditSheet.number("abc") == nil)
+    }
+}

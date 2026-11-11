@@ -37,6 +37,14 @@ struct LineSheet: View {
                             ForEach(store.state.debts) { d in Text(d.name).tag(d.id) }
                         }
                     }
+                    // One-time debt payments (including ones paid with savings) can be linked
+                    // to a debt, so marking them paid lowers its balance on Payoff.
+                    if line.kind == "ex" && line.type == "debt" && !store.state.debts.isEmpty {
+                        Picker("Pays down", selection: Binding(get: { line.debtId }, set: { store.setOneTimeDebt(line, $0) })) {
+                            Text("Not linked").tag("")
+                            ForEach(store.state.debts) { d in Text(d.name).tag(d.id) }
+                        }
+                    }
                 }
                 // Spending categories: the purchases logged against it, with a quick add row.
                 if line.isEnv {

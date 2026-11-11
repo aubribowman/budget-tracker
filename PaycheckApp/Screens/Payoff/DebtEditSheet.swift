@@ -12,6 +12,9 @@ struct DebtEditSheet: View {
     @State private var limit = ""
     @State private var original = ""
     @State private var confirmDelete = false
+    /// Today's balance when the sheet opened (the entered balance minus payments since).
+    /// The balance field starts here, so it matches the Payoff card.
+    @State private var shownBalance = 0.0
 
     var isNew: Bool { !store.state.debts.contains { $0.id == debt.id } }
 
@@ -28,7 +31,7 @@ struct DebtEditSheet: View {
                     field("Minimum payment", $minPay)
                     field("Credit limit (cards only)", $limit)
                 } footer: {
-                    Text("Changing the balance resets tracking to today. Payments you mark paid after today come off it automatically.")
+                    Text("Shows today's balance. Enter your statement balance and it becomes the new starting point: payments you mark paid after now come off it automatically. Commas and $ are fine.")
                 }
                 // Cards: the day each month's statement closes, for a reminder before it.
                 // Saved straight into `debt`, so save() needs nothing extra.
@@ -57,7 +60,8 @@ struct DebtEditSheet: View {
             }
             // Fill the text fields from the debt.
             .onAppear {
-                balance = String(format: "%.2f", debt.balance); apr = String(format: "%.2f", debt.apr)
+                shownBalance = isNew ? debt.balance : store.engine.curBal(debt)
+                balance = String(format: "%.2f", shownBalance); apr = String(format: "%.2f", debt.apr)
                 minPay = String(format: "%.2f", debt.min); original = String(format: "%.2f", debt.original)
                 limit = debt.limit.map { String(format: "%.2f", $0) } ?? ""
             }
@@ -69,17 +73,25 @@ struct DebtEditSheet: View {
         HStack { Text(label); Spacer(); TextField("0.00", text: text).decimalPad().multilineTextAlignment(.trailing).frame(maxWidth: 120) }
     }
 
+    /// Reads a typed amount, allowing "$1,250.00" and spaces. nil if it isn't a number.
+    static func number(_ s: String) -> Double? { BankCSV.parseMoney(s) }
+
     /// Saves the debt. A new balance also moves `asOf` to now, so only payments marked
     /// paid after this moment come off it (see Engine.paidSince).
     func save() {
         var d = debt
-        let nb = Double(balance) ?? d.balance
-        if abs(nb - d.balance) > 0.004 || isNew { d.balance = nb; d.asOf = DU.iso(Date()); d.asOfAt = DU.stamp() }
-        d.apr = Double(apr) ?? d.apr
-        d.min = Double(minPay) ?? d.min
-        d.original = Double(original) ?? d.original
+        // Compare with what the field started at (today's balance), not the stored one, so a
+        // statement balance that happens to equal the last one entered still saves.
+        if let nb = Self.number(balance), abs(nb - shownBalance) > 0.004 || isNew {
+            d.balance = r2(nb); d.asOf = DU.iso(Date()); d.asOfAt = DU.stamp()
+        }
+        d.apr = Self.number(apr) ?? d.apr
+        d.min = Self.number(minPay) ?? d.min
+        d.original = Self.number(original) ?? d.original
         if d.original <= 0 { d.original = d.balance }
-        d.limit = Double(limit).flatMap { $0 > 0 ? $0 : nil }
+        // An empty limit clears it; something unreadable leaves it alone.
+        let lt = limit.trimmingCharacters(in: .whitespaces)
+        if lt.isEmpty { d.limit = nil } else if let v = Self.number(lt) { d.limit = v > 0 ? v : nil }
         store.saveDebt(d)
     }
 }

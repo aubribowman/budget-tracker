@@ -13,9 +13,10 @@ import Foundation
 extension BudgetState {
     /// Records spending `amount` from a goal on a paycheck. Returns the new income item's id,
     /// or nil if the goal doesn't exist or the amount isn't positive.
+    /// `debtId` links a debt payment to a debt, so it lowers that debt's balance on Payoff.
     @discardableResult
     mutating func useSavings(goalId: String, amount: Double, for name: String, type: String,
-                             key: String, n: Int) -> String? {
+                             debtId: String? = nil, key: String, n: Int) -> String? {
         let a = r2(amount)
         guard a > 0.004, let gi = goals.firstIndex(where: { $0.id == goalId }) else { return nil }
         goals[gi].balance = r2(goals[gi].balance - a)
@@ -32,6 +33,7 @@ extension BudgetState {
         spend.paid = true
         spend.paidAt = DU.stamp()
         spend.useId = income.id
+        if type == "debt", let d = debtId, !d.isEmpty { spend.debtId = d }
 
         var m = months[key] ?? [:]
         var c = m[String(n)] ?? Cell()
