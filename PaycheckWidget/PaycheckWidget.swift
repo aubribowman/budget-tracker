@@ -13,6 +13,7 @@ struct WidgetSummary: Codable {
     var pastDue: Int
     var spendingLeft: Double
     var spendingBudget: Double
+    var categories: [Category]?   // each spending category on this paycheck, in the app's order
     var goalName: String?
     var goalSaved: Double
     var goalTarget: Double
@@ -25,6 +26,13 @@ struct WidgetSummary: Codable {
     }()
     static let fileName = "widget.json"
 
+    /// One spending category: what's left of what was budgeted on this paycheck.
+    struct Category: Codable {
+        var name: String
+        var left: Double
+        var budget: Double
+    }
+
     /// Reads the summary the app last wrote. Nil until the app has run once.
     static func load() -> WidgetSummary? {
         guard let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupId),
@@ -36,6 +44,8 @@ struct WidgetSummary: Codable {
     /// Made-up numbers for the widget gallery and previews, so your real budget never shows there.
     static let sample = WidgetSummary(updated: .now, left: 612.40, paycheckDate: .now, nextPayday: Calendar.current.date(byAdding: .day, value: 6, to: .now),
                                       billsDue: 2, billsDueAmount: 385, pastDue: 0, spendingLeft: 157.45, spendingBudget: 415,
+                                      categories: [.init(name: "Groceries", left: 92.10, budget: 250), .init(name: "Gas", left: 40, budget: 90),
+                                                   .init(name: "Fun money", left: 25.35, budget: 75)],
                                       goalName: "Emergency fund", goalSaved: 1950, goalTarget: 5000)
 }
 
@@ -171,6 +181,128 @@ struct PaycheckWidgetView: View {
     }
 }
 
+// MARK: - Spending left widget
+
+/// A second widget just for spending: what's left to spend on this paycheck, overall and
+/// by category. Same summary file as the Paycheck widget.
+struct SpendingWidgetView: View {
+    @Environment(\.widgetFamily) var family
+    let entry: Entry
+
+    var body: some View {
+        if let s = entry.summary {
+            switch family {
+            case .accessoryRectangular: lockRect(s)
+            case .accessoryCircular: lockCircle(s)
+            case .accessoryInline: Text(overText(s.spendingLeft) ?? "\(money(s.spendingLeft, cents: false)) left to spend")
+            case .systemMedium: medium(s)
+            default: small(s)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 4) {
+                Image(systemName: "cart").foregroundStyle(moss)
+                Text("Open Paycheck Plan to set up your widget.").font(.caption)
+            }
+        }
+    }
+
+    /// "Over $13" when below zero, else nil.
+    func overText(_ left: Double) -> String? { left < -0.004 ? "Over \(money(-left, cents: false))" : nil }
+
+    /// The total left with a bar of how much is used.
+    func total(_ s: WidgetSummary) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Spending left").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+            Text(overText(s.spendingLeft) ?? money(s.spendingLeft)).font(.title2.weight(.heavy))
+                .minimumScaleFactor(0.5).lineLimit(1)
+                .foregroundStyle(s.spendingLeft < -0.004 ? rosy : .primary)
+            ProgressView(value: max(0, min(1, s.spendingBudget > 0 ? 1 - s.spendingLeft / s.spendingBudget : 0)))
+                .tint(s.spendingLeft < -0.004 ? rosy : moss)
+            Text("of \(money(s.spendingBudget, cents: false))").font(.caption2).foregroundStyle(.secondary)
+        }
+    }
+
+    /// One category: its name and what's left (or how much over).
+    func row(_ c: WidgetSummary.Category) -> some View {
+        HStack(spacing: 4) {
+            Text(c.name).lineLimit(1).foregroundStyle(.secondary)
+            Spacer(minLength: 4)
+            Text(overText(c.left) ?? money(c.left, cents: false)).monospacedDigit()
+                .foregroundStyle(c.left < -0.004 ? rosy : .primary)
+        }
+        .font(.caption2)
+    }
+
+    /// Home screen, small: the total and the first two categories.
+    func small(_ s: WidgetSummary) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            total(s)
+            Spacer(minLength: 0)
+            ForEach(Array((s.categories ?? []).prefix(2).enumerated()), id: \.offset) { _, c in row(c) }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    /// Home screen, medium: the total beside up to five categories, each with a bar.
+    func medium(_ s: WidgetSummary) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                total(s)
+                Spacer(minLength: 0)
+                if s.nextPayday != nil {
+                    Label("Payday \(daysAway(s.nextPayday))", systemImage: "calendar").font(.caption2.weight(.semibold)).foregroundStyle(moss)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            VStack(alignment: .leading, spacing: 5) {
+                let cats = s.categories ?? []
+                if cats.isEmpty { Text("No spending categories on this paycheck.").font(.caption2).foregroundStyle(.secondary) }
+                ForEach(Array(cats.prefix(5).enumerated()), id: \.offset) { _, c in
+                    VStack(alignment: .leading, spacing: 2) {
+                        row(c)
+                        ProgressView(value: max(0, min(1, c.budget > 0 ? 1 - c.left / c.budget : 1)))
+                            .tint(c.left < -0.004 ? rosy : moss).scaleEffect(y: 0.6, anchor: .top)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+    }
+
+    /// Lock screen, rectangular: the total and the first two categories.
+    func lockRect(_ s: WidgetSummary) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(overText(s.spendingLeft).map { "Spending: \($0)" } ?? "\(money(s.spendingLeft, cents: false)) to spend")
+                .font(.headline).widgetAccentable()
+            ForEach(Array((s.categories ?? []).prefix(2).enumerated()), id: \.offset) { _, c in
+                Text("\(c.name): \(overText(c.left) ?? money(c.left, cents: false) + " left")").font(.caption).lineLimit(1)
+            }
+        }
+    }
+
+    /// Lock screen, circular: spending left as a gauge.
+    func lockCircle(_ s: WidgetSummary) -> some View {
+        Gauge(value: max(0, min(1, s.spendingBudget > 0 ? s.spendingLeft / s.spendingBudget : 0))) {
+            Image(systemName: "cart")
+        } currentValueLabel: {
+            Text(money(s.spendingLeft, cents: false)).minimumScaleFactor(0.5)
+        }
+        .gaugeStyle(.accessoryCircular)
+    }
+}
+
+/// The Spending left widget in the widget gallery.
+struct SpendingWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "SpendingWidget", provider: Provider()) { entry in
+            SpendingWidgetView(entry: entry).containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("Spending left")
+        .description("What's left to spend on this paycheck, overall and by category.")
+        .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular, .accessoryCircular, .accessoryInline])
+    }
+}
+
 /// The widget's name and description in the widget gallery, and the sizes it comes in.
 struct PaycheckWidget: Widget {
     var body: some WidgetConfiguration {
@@ -185,5 +317,8 @@ struct PaycheckWidget: Widget {
 
 @main
 struct PaycheckWidgetBundle: WidgetBundle {
-    var body: some Widget { PaycheckWidget() }
+    var body: some Widget {
+        PaycheckWidget()
+        SpendingWidget()
+    }
 }

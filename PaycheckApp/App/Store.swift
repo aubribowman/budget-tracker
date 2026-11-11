@@ -60,7 +60,11 @@ final class Store: ObservableObject {
 
     /// Recomputes "today"-based numbers (autopay, what's due) without counting as a change,
     /// so just opening the app doesn't make this device's copy look newest to sync.
-    func refresh() { engine = Engine(state) }
+    /// Also updates the widget, so it's current (and has any new fields) after a reinstall.
+    func refresh() {
+        engine = Engine(state)
+        WidgetSync.write(engine, goals: state.goals)
+    }
 
     /// Saves to this device, then (for your own changes) to the sync folder. Waits 0.4
     /// seconds first, so typing or quick taps turn into one save. Also refreshes the

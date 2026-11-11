@@ -89,16 +89,18 @@ struct MonthlyReviewView: View {
                         ForEach(TypeInfo.order, id: \.self) { k in
                             // For spending, compare what was actually spent, so it matches the category list below.
                             let a = k == "expense" ? r.spent : (r.byType[k] ?? 0), p = r.plannedByType[k] ?? 0
+                            // More than planned into savings or debts is good, so it isn't red.
+                            let over = a > p + 0.5 && !MonthView.moreIsGood(k)
                             if a > 0 || p > 0 {
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack {
                                         Text(TypeInfo.of(k).label)
                                         Spacer()
                                         Text("\(money(a)) of \(money(p))").monospacedDigit()
-                                            .foregroundStyle(a > p + 0.5 ? Theme.over : .secondary)
+                                            .foregroundStyle(over ? Theme.over : .secondary)
                                     }
                                     .font(.ui(.subheadline))
-                                    ProgressBar(value: p > 0 ? a / p : 0, color: a > p + 0.5 ? Theme.over : TypeInfo.of(k).color, height: 6)
+                                    ProgressBar(value: p > 0 ? a / p : 0, color: over ? Theme.over : TypeInfo.of(k).color, height: 6)
                                 }
                             }
                         }

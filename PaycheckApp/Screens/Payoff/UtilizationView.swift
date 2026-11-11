@@ -35,38 +35,6 @@ struct Utilization {
     }
 }
 
-/// Summary card for the Payoff tab. Taps through to the full breakdown.
-struct UtilizationCard: View {
-    @EnvironmentObject var store: Store
-    var body: some View {
-        let u = Utilization(store)
-        if !u.cards.isEmpty {
-            let band = Utilization.band(u.pct)
-            NavigationLink { UtilizationView() } label: {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        CardHeader("Credit utilization", icon: "gauge.with.dots.needle.33percent")
-                        Spacer()
-                        Tag(text: band.label, color: band.color)
-                        Image(systemName: "chevron.right").font(.ui(.caption).weight(.semibold)).foregroundStyle(.tertiary)
-                    }
-                    HStack(alignment: .firstTextBaseline) {
-                        Text("\(Int(u.pct.rounded()))%").font(.ui(.title).bold()).monospacedDigit().foregroundStyle(band.color)
-                        Text("of \(money0(u.limit)) in limits").font(.ui(.subheadline)).foregroundStyle(.secondary)
-                    }
-                    UtilBar(pct: u.pct)
-                    if u.pct >= 30 {
-                        Text("Pay \(money(u.toReach(30))) to get under 30%.").font(.ui(.caption)).foregroundStyle(.secondary)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .card()
-            }
-            .buttonStyle(.plain)
-        }
-    }
-}
-
 /// Full utilization screen: overall and per card, and what to pay to get under 30% and 10%.
 struct UtilizationView: View {
     @EnvironmentObject var store: Store

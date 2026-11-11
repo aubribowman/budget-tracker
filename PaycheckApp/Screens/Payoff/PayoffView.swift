@@ -10,6 +10,7 @@ struct PayoffView: View {
     @State private var editing: Debt?
     @State private var extraText = ""
     @State private var dragExtra: Double?          // while the slider is moving
+    @State private var showUtilization = false
     @AppStorage("payoffSection") private var section = "debts"
 
     var body: some View {
@@ -70,8 +71,8 @@ struct PayoffView: View {
                         // How long and how much interest, then each group's own payoff month.
                         if total + loanTotal > 0.005 && !all.stuck {
                             let months = all.months
-                            Text("\(months) months from now" + (months >= 24 ? " (\((Double(months) / 12).formatted(.number.precision(.fractionLength(1)))) years)" : "") +
-                                 ", about \(money0(all.interest)) in interest along the way.")
+                            Text("In \(months) months" + (months >= 24 ? " (\((Double(months) / 12).formatted(.number.precision(.fractionLength(1)))) years)" : "") +
+                                 " · about \(money0(all.interest)) in interest")
                                 .font(.ui(.subheadline)).foregroundStyle(.secondary)
                             ViewThatFits(in: .horizontal) {
                                 HStack(spacing: 16) { groupDates(all, debts: !ranked.isEmpty, loans: hasLoans, now: now) }
@@ -81,10 +82,26 @@ struct PayoffView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .card()
+                    .card(tint: Theme.leadCard)   // the card this screen leads with, like Home's paycheck card
+
+                    // Owed, interest ahead, next payoff and utilization as tiles (PayoffTiles.swift).
+                    if total + loanTotal > 0.005 || !store.state.debts.isEmpty {
+                        let first = ranked.first
+                        PayoffTiles(debtOwed: total, loanOwed: loanTotal,
+                                    interest: all.stuck ? nil : all.interest,
+                                    next: first.flatMap { d in
+                                        sim.payoff[d.id].map { m in
+                                            let o = d.original > 0 ? d.original : d.balance
+                                            return (d.name, DU.monthLabel(DU.addMonths(now, m), short: true),
+                                                    o > 0 ? max(0, min(1, 1 - e.curBal(d) / o)) : 0)
+                                        }
+                                    },
+                                    openUtilization: { showUtilization = true })
+                    }
 
                     // Strategy and extra
                     VStack(alignment: .leading, spacing: 12) {
+                        CardHeader("Your plan", icon: "slider.horizontal.3")
                         Picker("Strategy", selection: Binding(get: { store.state.strategy }, set: { v in
                             store.update { s in
                                 s.strategy = v
@@ -107,9 +124,15 @@ struct PayoffView: View {
                         ValueRow {
                             Text("Extra toward debt each month")
                         } value: {
-                            TextField("0.00", text: $extraText, onCommit: commitExtra)
-                                .decimalPad().multilineTextAlignment(.trailing).frame(maxWidth: 110)
-                                .textFieldStyle(.roundedBorder)
+                            HStack(spacing: 2) {
+                                Text("$").foregroundStyle(.secondary)
+                                TextField("0.00", text: $extraText, onCommit: commitExtra)
+                                    .decimalPad().multilineTextAlignment(.trailing)
+                                    .font(.display(.title3, weight: .bold)).monospacedDigit()
+                            }
+                            .padding(.horizontal, 10).padding(.vertical, 6)
+                            .background(Theme.bg, in: RoundedRectangle(cornerRadius: Radius.inner, style: .continuous))
+                            .frame(maxWidth: 130)
                         }
                         Slider(value: Binding(get: { dragExtra ?? store.state.extra },
                                               set: { dragExtra = $0; extraText = String(format: "%.2f", $0) }),
@@ -127,9 +150,16 @@ struct PayoffView: View {
                         if hasLoans && alt.months != all.months {
                             // Compared with the checkbox the other way, like the web app.
                             let diff = alt.months - all.months, saved = alt.interest - all.interest
-                            Text(roll ? "That gets you debt-free \(diff) \(diff == 1 ? "month" : "months") sooner and saves about \(money0(saved)) in interest."
-                                      : "Turning it on would make you debt-free \(-diff) \(diff == -1 ? "month" : "months") sooner and save about \(money0(-saved)).")
-                                .font(.ui(.caption)).foregroundStyle(.secondary)
+                            // Good news reads as good news: green with a sparkle when it's helping.
+                            Label(roll ? "Debt-free \(diff) \(diff == 1 ? "month" : "months") sooner, saving about \(money0(saved)) in interest."
+                                       : "Turning it on would make you debt-free \(-diff) \(diff == -1 ? "month" : "months") sooner and save about \(money0(-saved)).",
+                                  systemImage: roll ? "sparkles" : "lightbulb")
+                                .font(.ui(.caption).weight(.semibold))
+                                .foregroundStyle(roll ? Theme.good : .secondary)
+                                .padding(10)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background((roll ? Theme.good : Color.secondary).opacity(0.1),
+                                            in: RoundedRectangle(cornerRadius: Radius.inner, style: .continuous))
                         }
                     }
                     .card()
@@ -138,43 +168,58 @@ struct PayoffView: View {
                         PayoffChartCard(sim: all, debts: !ranked.isEmpty, loans: hasLoans)
                     }
 
-                    UtilizationCard()
-
                     ExtraLineCard()
 
-                    // Debts
-                    ForEach(store.state.debts) { d in
+                    // Debts, in the order they'll be paid off; paid-off ones last.
+                    if !store.state.debts.isEmpty {
+                        Text("Your debts").font(.display(.title3, weight: .bold))
+                            .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 4)
+                    }
+                    ForEach(store.state.debts.sorted { (ranked.firstIndex(of: $0) ?? 999) < (ranked.firstIndex(of: $1) ?? 999) }) { d in
                         let b = e.curBal(d)
                         let o = d.original > 0 ? d.original : d.balance
+                        let paid = o > 0 ? max(0, min(1, 1 - b / o)) : 0
                         let rank = ranked.firstIndex(where: { $0.id == d.id })
                         Button { editing = d } label: {
-                            VStack(alignment: .leading, spacing: 8) {
-                                ValueRow {
-                                    Text(d.name).font(.ui(.headline))
-                                } value: {
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack(spacing: Space.m) {
+                                    IconBadge(icon: ItemIcon.guess(d.name, type: "debt"), color: TypeInfo.of("debt").color, size: 40)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(d.name).font(.ui(.headline)).lineLimit(1)
+                                        // Where today's balance comes from, so a payment that did or didn't
+                                        // count is easy to spot.
+                                        Text(balanceSource(d)).font(.ui(.caption)).foregroundStyle(.secondary)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    Spacer(minLength: 4)
                                     if b <= 0.005 { Tag(text: "Paid off", color: Theme.good) }
                                     else if let r = rank { Tag(text: "\(DU.ordinal(r + 1)) to pay off") }
                                 }
-                                Text(money(b)).font(.display(.title2, weight: .bold)).monospacedDigit().rollingNumber(b)
-                                // Where today's balance comes from, so a payment that did or didn't
-                                // count is easy to spot.
-                                Text(balanceSource(d)).font(.ui(.caption)).foregroundStyle(.secondary)
-                                ProgressBar(value: o > 0 ? 1 - b / o : 0, color: Theme.rosy)
-                                ValueRow {
-                                    Text("APR \(String(format: "%.2f", d.apr))%")
+                                ValueRow(alignment: .firstTextBaseline) {
+                                    Text(money(b)).font(.display(.title2, weight: .bold)).monospacedDigit().rollingNumber(b)
                                 } value: {
-                                    if let m = sim.payoff[d.id], b > 0.005 { Text("Gone by \(DU.monthLabel(DU.addMonths(now, m), short: true))") }
+                                    if o > 0 && paid > 0.004 {
+                                        Text("\(Int((paid * 100).rounded()))% paid off").font(.ui(.caption).weight(.semibold))
+                                            .foregroundStyle(Theme.good)
+                                    }
                                 }
-                                .font(.ui(.caption)).foregroundStyle(.secondary)
-                                // Cards with a statement day set (in the debt editor).
-                                if b > 0.005, let close = d.nextStatement() {
-                                    Label("Statement closes \(DU.statementLabel(close))", systemImage: "calendar")
-                                        .font(.ui(.caption)).foregroundStyle(.secondary)
-                                }
-                                if let lim = d.limit, lim > 0 {
-                                    let u = b / lim * 100
-                                    Text("Using \(Int(u.rounded()))% of \(money0(lim)) limit").font(.ui(.caption))
-                                        .foregroundStyle(u >= 30 ? Theme.over : Theme.good)
+                                ProgressBar(value: paid, color: Theme.rosy, height: 8)
+                                // The details as small chips that wrap to a second line when needed.
+                                FlowLayout(spacing: 6, lineSpacing: 6) {
+                                    PayoffChip(icon: "percent", text: "\(String(format: "%.2f", d.apr))% APR")
+                                    if let m = sim.payoff[d.id], b > 0.005 {
+                                        PayoffChip(icon: "flag.checkered", text: "Gone by \(DU.monthLabel(DU.addMonths(now, m), short: true))")
+                                    }
+                                    if d.min > 0, b > 0.005 { PayoffChip(icon: "arrow.down.circle", text: "\(money0(d.min)) min") }
+                                    // Cards with a statement day set (in the debt editor).
+                                    if b > 0.005, let close = d.nextStatement() {
+                                        PayoffChip(icon: "calendar", text: "Statement \(DU.statementLabel(close))")
+                                    }
+                                    if let lim = d.limit, lim > 0 {
+                                        let u = b / lim * 100
+                                        PayoffChip(icon: "gauge.with.dots.needle.33percent", text: "Using \(Int(u.rounded()))% of \(money0(lim))",
+                                                   color: u >= 30 ? Theme.over : Theme.good)
+                                    }
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -191,6 +236,7 @@ struct PayoffView: View {
             .background(Theme.bg)
             .pageTitle("Payoff")
             .sheet(item: $editing) { d in DebtEditSheet(debt: d).macSheet() }
+            .navigationDestination(isPresented: $showUtilization) { UtilizationView() }
             .onAppear { extraText = String(format: "%.2f", store.state.extra) }
             .keyboardDoneButton { commitExtra() }
         }
@@ -239,5 +285,21 @@ struct PayoffView: View {
         if loans {
             PayoffLegendDot(color: PayoffChartCard.loanColor, label: "Student loans", value: DU.monthLabel(all.loansDone(now), short: true))
         }
+    }
+}
+
+/// A small rounded label with an icon, for a debt's details (APR, payoff month, minimum).
+struct PayoffChip: View {
+    let icon: String
+    let text: String
+    var color: Color = .secondary
+    var body: some View {
+        Label(text, systemImage: icon)
+            .font(.ui(.caption).weight(.medium))
+            .labelStyle(.titleAndIcon)
+            .foregroundStyle(color)
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(Theme.bg, in: Capsule())
+            .lineLimit(1)
     }
 }

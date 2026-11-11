@@ -21,11 +21,12 @@ struct MonthView: View {
                     MonthPill()
                     MonthSummaryCard(income: mt.income, out: mt.actual, planned: mt.budget, paid: mt.paid,
                                      lastLeft: lastMonthLeft, lastLabel: DU.monthName(DU.addMonths(store.month, -1)),
-                                     monthDone: monthElapsed)
+                                     monthDone: monthElapsed, extra: extraSaved)
+                    MonthTiles()
 
                     // Share of take-home by category type
                     VStack(alignment: .leading, spacing: 12) {
-                        CardHeader("Where your pay goes")
+                        CardHeader("Where your pay goes", icon: "chart.pie")
                         let slices = TypeInfo.order.compactMap { k in (mt.byType[k] ?? 0) > 0 ? Slice(label: TypeInfo.of(k).label, value: mt.byType[k] ?? 0, color: TypeInfo.of(k).color) : nil }
                             + (left > 0 ? [Slice(label: "Unassigned", value: left, color: Theme.track)] : [])
                         // A donut of take-home, with the total in the middle.
@@ -67,9 +68,16 @@ struct MonthView: View {
 
                     // Over budget
                     VStack(alignment: .leading, spacing: 8) {
-                        CardHeader("Over budget")
+                        CardHeader("Over budget", icon: "exclamationmark.triangle")
                         if over.isEmpty {
-                            Text("Nothing is over budget this month.").font(.ui(.subheadline)).foregroundStyle(Theme.good)
+                            HStack(spacing: Space.m) {
+                                IconBadge(icon: "checkmark.seal.fill", color: Theme.good, size: 36)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("All within budget").font(.ui(.subheadline).weight(.semibold))
+                                    Text("Nothing has gone over this month.").font(.ui(.caption)).foregroundStyle(.secondary)
+                                }
+                            }
+                            .accessibilityElement(children: .combine)
                         } else {
                             ForEach(over) { item in
                                 ValueRow(alignment: .firstTextBaseline) {
@@ -87,26 +95,53 @@ struct MonthView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .card()
 
-                    // Every category
+                    // Every category, grouped by type (Bills, Spending…) with each group's total.
                     VStack(alignment: .leading, spacing: 8) {
-                        CardHeader("Every category")
-                        ForEach(cats, id: \.name) { r in
+                        CardHeader("Every category", icon: "list.bullet")
+                        ForEach(TypeInfo.order.filter { t in cats.contains { $0.type == t } } + Set(cats.map(\.type)).subtracting(TypeInfo.order).sorted(), id: \.self) { t in
+                            let group = cats.filter { $0.type == t }
+                            ValueRow(spacing: Space.s) {
+                                Circle().fill(TypeInfo.of(t).color).frame(width: 8, height: 8)
+                                Text(TypeInfo.of(t).label.uppercased()).font(.ui(.caption).weight(.bold)).tracking(0.6)
+                                    .foregroundStyle(.secondary)
+                            } value: {
+                                Text(money0(group.reduce(0) { $0 + $1.actual })).font(.ui(.caption).weight(.bold))
+                                    .monospacedDigit().foregroundStyle(.secondary)
+                            }
+                            .padding(.top, Space.s)
+                            .accessibilityElement(children: .combine)
+                        ForEach(group, id: \.name) { r in
                             ValueRow {
                                 // The item's own icon if it's a recurring item; one-time items get a guess from the name.
                                 IconBadge(icon: store.state.recurring.first { $0.name == r.name && $0.type == r.type }.map { ItemIcon.of($0) }
                                           ?? ItemIcon.guess(r.name, type: r.type), color: TypeInfo.of(r.type).color, size: 28)
-                                Text(r.name).font(.ui(.subheadline))
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(r.name).font(.ui(.subheadline))
+                                    // Spending categories: how much of the budget is used so far.
+                                    if r.isEnv && r.budget > 0 {
+                                        ProgressBar(value: min(1, r.spent / r.budget),
+                                                    color: r.spent > r.budget + 0.004 ? Theme.over : TypeInfo.of(r.type).color, height: 4)
+                                            .frame(maxWidth: 120)
+                                        Text("\(money0(r.spent)) spent").font(.ui(.caption2)).foregroundStyle(.secondary)
+                                    }
+                                }
                             } value: {
                                 VStack(alignment: .trailing, spacing: 0) {
                                     Text(money(r.actual)).font(.ui(.subheadline).weight(.semibold)).monospacedDigit()
                                     // Green "+$20 vs budget" when under, red "−$20" when over; nothing within 50¢.
+                                    // Putting more than planned into savings or a debt is good, so it's green "extra".
                                     let d = r.budget - r.actual
                                     if abs(d) > 0.5 {
-                                        Text((d > 0 ? "+" : "−") + money(abs(d)) + " vs budget").font(.ui(.caption2)).foregroundStyle(d > 0 ? Theme.good : Theme.over)
+                                        if d < 0 && Self.moreIsGood(r.type) {
+                                            Text("+" + money(-d) + " extra").font(.ui(.caption2)).foregroundStyle(Theme.good)
+                                        } else {
+                                            Text((d > 0 ? "+" : "−") + money(abs(d)) + " vs budget").font(.ui(.caption2)).foregroundStyle(d > 0 ? Theme.good : Theme.over)
+                                        }
                                     }
                                 }
                             }
-                            Divider()
+                            if r.name != group.last?.name { Divider() }
+                        }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -126,6 +161,22 @@ struct MonthView: View {
             .monthScreen("Month")
             .sheet(isPresented: $reviewing) { MonthlyReviewView(month: store.month).macSheet() }
         }
+    }
+
+    /// Savings and debt payments: paying more than planned is good, not over budget.
+    static func moreIsGood(_ type: String) -> Bool { type == "savings" || type == "debt" }
+
+    /// How much more than planned went to savings and debts this month. The summary card
+    /// leaves it out when checking whether the month is over plan.
+    var extraSaved: Double {
+        let e = store.engine
+        var x = 0.0
+        for c in e.checksIn(store.month) {
+            for l in e.lines(store.month, c.n) where !l.skip && !l.isEnv && Self.moreIsGood(l.type) {
+                x += max(0, l.amount - l.budget)
+            }
+        }
+        return x
     }
 
     /// Last month's left over, to compare with. Nil before the plan starts or with no paychecks.
@@ -148,7 +199,7 @@ struct MonthView: View {
     struct Slice: Identifiable { let label: String; let value: Double; let color: Color; var id: String { label } }
 
     /// One item's planned and actual amounts across every paycheck in the month.
-    struct Cat { var name: String; var type: String; var budget: Double; var actual: Double }
+    struct Cat { var name: String; var type: String; var budget: Double; var actual: Double; var spent = 0.0; var isEnv = false }
 
     /// Adds up each item over the month's paychecks. Items are matched by type and name,
     /// so one-time items with the same name are grouped too. Sorted by type, then biggest first.
@@ -159,7 +210,8 @@ struct MonthView: View {
             for l in e.lines(store.month, c.n) where !l.skip {
                 let k = l.type + "|" + l.name.lowercased()
                 var r = map[k] ?? Cat(name: l.name, type: l.type, budget: 0, actual: 0)
-                r.budget += l.budget; r.actual += l.amount
+                r.budget += l.isEnv ? l.env : l.budget; r.actual += l.amount
+                r.spent += l.spent; r.isEnv = r.isEnv || l.isEnv
                 map[k] = r
             }
         }
@@ -173,7 +225,7 @@ struct MonthView: View {
     struct OverItem: Identifiable { let title: String; let detail: String; let over: Double; var id: String { title + detail } }
 
     /// Everything over budget this month: spending over its budget, bills over their
-    /// usual amount (not the extra debt line), and paychecks with more assigned than they bring in.
+    /// usual amount (not savings or debt payments, where more is good), and paychecks with more assigned than they bring in.
     func overBudget() -> [OverItem] {
         let e = store.engine
         var out: [OverItem] = []
@@ -181,7 +233,7 @@ struct MonthView: View {
             for l in e.lines(store.month, c.n) where !l.skip && l.kind == "rec" {
                 if l.isEnv && l.spent > l.env + 0.004 {
                     out.append(OverItem(title: "\(l.name), \(DU.short(c.date))", detail: "Spent \(money(l.spent)) of \(money(l.env))", over: l.spent - l.env))
-                } else if !l.isEnv && !l.isExtraLine && l.amount > l.budget + 0.004 {
+                } else if !l.isEnv && !l.isExtraLine && !Self.moreIsGood(l.type) && l.amount > l.budget + 0.004 {
                     out.append(OverItem(title: "\(l.name), \(DU.short(c.date))", detail: "\(money(l.amount)) instead of \(money(l.budget))", over: l.amount - l.budget))
                 }
             }
@@ -202,18 +254,20 @@ struct MonthSummaryCard: View {
     var lastLeft: Double? = nil        // last month's left over, for the comparison chip
     var lastLabel: String = ""         // "Oct"
     var monthDone: Double? = nil       // how far through the month today is; nil hides the tick
+    var extra: Double = 0              // put into savings and debts beyond plan; doesn't count as over plan
 
     var body: some View {
         let left = income - out
         let over = left < -0.004
         let used = income > 0 ? min(1, out / income) : 0
+        let abovePlan = out - extra > planned + 0.5
         VStack(alignment: .leading, spacing: Space.xl) {
             VStack(alignment: .leading, spacing: Space.s) {
                 ValueRow(alignment: .firstTextBaseline) {
                     Text(over ? "Over budget" : "Left over")
                         .font(.display(.headline, weight: .bold)).foregroundStyle(.secondary)
                 } value: {
-                    if out > planned + 0.5 || over {
+                    if abovePlan || over {
                         chip(over ? "Over plan" : "Above plan", icon: "exclamationmark.triangle.fill", color: Theme.over)
                     } else {
                         chip("On plan", icon: "checkmark.circle.fill", color: Theme.good)
@@ -232,7 +286,7 @@ struct MonthSummaryCard: View {
                 : AnyLayout(HStackLayout(alignment: .top, spacing: Space.l))
             stats {
                 stat("Coming in", income, nil)
-                stat("Going out", out, planDiff, subColor: out <= planned + 0.5 ? Theme.good : Theme.over)
+                stat("Going out", out, planDiff, subColor: abovePlan ? Theme.over : Theme.good)
                 stat("Paid", paid, nil)
             }
         }
@@ -241,11 +295,13 @@ struct MonthSummaryCard: View {
         .card(tint: Theme.leadCard)
     }
 
-    /// Only shown when it's off plan by more than a rounding error.
+    /// Only shown when it's off plan by more than a rounding error. Extra put into savings
+    /// or debts is shown on its own and isn't counted as over plan.
     var planDiff: String? {
-        let d = planned - out
-        if abs(d) < 0.5 { return nil }
-        return d > 0 ? "\(money0(d)) under plan" : "\(money0(-d)) over plan"
+        let d = planned - (out - extra)
+        if d < -0.5 { return "\(money0(-d)) over plan" }
+        if extra > 0.5 { return "\(money0(extra)) extra saved" }
+        return d > 0.5 ? "\(money0(d)) under plan" : nil
     }
 
     /// "▲ $120 vs Oct": up is good (more left over), down is rose.

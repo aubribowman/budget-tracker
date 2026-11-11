@@ -46,6 +46,7 @@ struct PayoffChartCard: View {
             + sim.loanPayoff.map { k, m in Payoff(id: k, name: store.state.loans.first { $0.id == k }?.name ?? "Student loan", month: m, loan: true) }
 
         VStack(alignment: .leading, spacing: 10) {
+            CardHeader("Balance over time", icon: "chart.xyaxis.line")
             Chart {
                 ForEach(points) { p in
                     if loans {

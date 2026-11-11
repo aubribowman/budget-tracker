@@ -47,12 +47,9 @@ struct HomeView: View {
                         if let c = u.cur, !envs.isEmpty {
                             SpendingCard(check: c) { tab = .purchases }
                         }
-                        if !store.state.debts.isEmpty {
-                            DebtSummary { tab = .debt }
-                        }
-                        GoalsSummary { showGoals = true }
-                        // Always shown, since it's the way into Investments.
-                        NetWorthCard { showInvestments = true }
+                        // Goals, Debt, Net worth and Investments as small tiles (HomeTiles.swift).
+                        HomeTiles(goals: { showGoals = true }, debt: { tab = .debt },
+                                  investments: { showInvestments = true })
                         // Quick actions at the bottom.
                         if !envs.isEmpty {
                             Button { adding = true } label: {
@@ -249,42 +246,86 @@ private struct DueCard: View {
     }
 }
 
-/// Spending money left in each category on the current paycheck.
+/// Spending money left on the current paycheck: a ring with one slice per category
+/// (sized by its budget, red when over), what's left in each beside it, and the
+/// spent-per-paycheck bars underneath.
 private struct SpendingCard: View {
     @EnvironmentObject var store: Store
     let check: Check
     let open: () -> Void
 
+    struct Slice: Identifiable { let id: Int; let name: String; let budget: Double; let left: Double; let color: Color }
+    /// One arc of the ring: what's left in a category (its color), or everything spent (gray).
+    struct Arc: Identifiable { let id: String; let amount: Double; let color: Color }
+
+    /// The ring shows the whole budget: a colored arc for what's left in each category,
+    /// sized by that amount so it matches the list, and one gray arc for what's spent.
+    /// A category that's over has nothing left, so it has no arc (it shows red in the list).
+    /// Gray for spent, a little darker than the usual track so its dot shows in the list.
+    static let spentGray = Color.gray.opacity(0.28)
+
+    static func arcs(_ slices: [Slice], budget: Double) -> [Arc] {
+        var out = slices.filter { $0.left > 0.004 }.map { Arc(id: "c\($0.id)", amount: $0.left, color: $0.color) }
+        let spent = budget - out.reduce(0) { $0 + $1.amount }
+        if spent > 0.004 || out.isEmpty { out.append(Arc(id: "spent", amount: max(spent, 1), color: spentGray)) }
+        return out
+    }
+
     var body: some View {
-        // The spending categories on this paycheck, added up.
         let lines = store.engine.lines(check.key, check.n).filter { $0.type == "expense" && !$0.skip }
-        let budget = lines.reduce(0) { $0 + $1.env }
-        let spent = lines.reduce(0) { $0 + $1.spent }
-        let over = spent > budget + 0.004
+        let slices = lines.enumerated().map { i, l in
+            Slice(id: i, name: l.name, budget: l.env, left: l.env - l.spent, color: HomePalette.color(i))
+        }
+        let budget = slices.reduce(0) { $0 + $1.budget }
+        let left = slices.reduce(0) { $0 + $1.left }
+        let over = left < -0.004
         HomeCard(id: "home.spending", title: "Spending left", icon: "cart",
-                 summary: over ? "Over \(money(spent - budget))" : "\(money(budget - spent)) left",
+                 summary: over ? "Over \(money(-left))" : "\(money(left)) left",
                  summaryColor: over ? Theme.over : .secondary, open: open) {
-            ValueRow(alignment: .firstTextBaseline) {
-                Text(money(budget - spent)).font(.display(.title2, weight: .bold)).monospacedDigit().rollingNumber(budget - spent)
-                    .foregroundStyle(over ? Theme.over : .primary)
-            } value: {
-                Text("of \(money(budget))").font(.ui(.subheadline)).foregroundStyle(.secondary)
-            }
-            ProgressBar(value: budget > 0 ? spent / budget : 0,
-                        color: over ? Theme.over : TypeInfo.of("expense").color, height: 6)
-            SpendingTrend(current: check)
-            // Up to four categories with what's left in each.
-            ForEach(lines.prefix(4), id: \.uid) { l in
-                let o = l.spent > l.env + 0.004
-                ValueRow(spacing: Space.s) {
-                    IconBadge(icon: ItemIcon.of(l, in: store.state), color: TypeInfo.of(l.type).color, size: 24)
-                    Text(l.name).font(.ui(.subheadline)).foregroundStyle(.secondary).lineLimit(1)
-                } value: {
-                    Text(o ? "Over \(money(l.spent - l.env))" : "\(money(l.env - l.spent)) left")
-                        .font(.ui(.subheadline)).monospacedDigit()
-                        .foregroundStyle(o ? Theme.over : .secondary)
+            HStack(alignment: .center, spacing: 18) {
+                ZStack {
+                    Chart(Self.arcs(slices, budget: budget)) { a in
+                        SectorMark(angle: .value("Amount", a.amount), innerRadius: .ratio(0.72), angularInset: 2)
+                            .foregroundStyle(a.color).cornerRadius(4)
+                    }
+                    VStack(spacing: 0) {
+                        Text(over ? "−\(money0(-left))" : money0(left))
+                            .font(.display(size: 24, weight: .bold)).monospacedDigit().rollingNumber(left)
+                            .foregroundStyle(over ? Theme.over : .primary).minimumScaleFactor(0.6).lineLimit(1)
+                        Text("of \(money0(budget))").font(.ui(.caption)).foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 18)
+                }
+                .frame(width: 130, height: 130)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Spending left")
+                .accessibilityValue(over ? "Over by \(money(-left))" : "\(money(left)) of \(money(budget))")
+                VStack(alignment: .leading, spacing: 9) {
+                    ForEach(slices) { s in
+                        let o = s.left < -0.004
+                        HStack(spacing: 8) {
+                            Circle().fill(o ? Theme.over : s.color).frame(width: 9, height: 9)
+                            Text(s.name).font(.ui(.subheadline)).lineLimit(1)
+                            Spacer(minLength: 4)
+                            Text(o ? "−\(money0(-s.left))" : money0(s.left))
+                                .font(.ui(.subheadline).weight(.semibold)).monospacedDigit()
+                                .foregroundStyle(o ? Theme.over : .primary)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                    let spent = slices.reduce(0) { $0 + ($1.budget - $1.left) }
+                    if spent > 0.004 {
+                        HStack(spacing: 8) {
+                            Circle().fill(Self.spentGray).frame(width: 9, height: 9)
+                            Text("Spent").font(.ui(.subheadline)).foregroundStyle(.secondary).lineLimit(1)
+                            Spacer(minLength: 4)
+                            Text(money0(spent)).font(.ui(.subheadline)).monospacedDigit().foregroundStyle(.secondary)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
                 }
             }
+            SpendingTrend(current: check)
         }
     }
 }
@@ -323,6 +364,10 @@ private struct SpendingTrend: View {
                     .font(.ui(.caption)).foregroundStyle(.secondary).monospacedDigit()
                 }
                 Chart {
+                    // First, so the bars and their amounts draw over it.
+                    RuleMark(y: .value("Usually", avg))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                        .foregroundStyle(Color.secondary)   // .secondary alone takes the accent color in a chart
                     ForEach(bars) { b in
                         // A short stub for $0, so an empty paycheck still has a visible slot.
                         BarMark(x: .value("Paycheck", b.id), y: .value("Spent", max(b.spent, top * 0.03)), width: .ratio(0.6))
@@ -333,11 +378,10 @@ private struct SpendingTrend: View {
                                     .font(.ui(.caption2).weight(b.now ? .bold : .regular))
                                     .foregroundStyle(b.now ? .primary : .secondary)
                                     .monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
+                                    .padding(.horizontal, 3)
+                                    .background(Theme.card)   // so the dashed line doesn't run through the number
                             }
                     }
-                    RuleMark(y: .value("Usually", avg))
-                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                        .foregroundStyle(Color.secondary)   // .secondary alone takes the accent color in a chart
                 }
                 .chartXAxis {
                     AxisMarks { v in
@@ -374,96 +418,6 @@ private struct SpendingTrend: View {
         return picked.map { c in
             let spent = e.lines(c.key, c.n).filter { $0.type == "expense" && !$0.skip }.reduce(0) { $0 + $1.spent }
             return Bar(id: "\(c.key).\(c.n)", label: DU.short(c.date), spent: spent, now: c.key == current.key && c.n == current.n)
-        }
-    }
-}
-
-/// Total debt still owed.
-private struct DebtSummary: View {
-    @EnvironmentObject var store: Store
-    let open: () -> Void
-
-    var body: some View {
-        let debts = store.state.debts
-        let total = debts.reduce(0) { $0 + store.engine.curBal($1) }
-        HomeCard(id: "home.debt", title: "Debt", icon: "creditcard", summary: money0(total), open: open) {
-            ValueRow(alignment: .firstTextBaseline) {
-                Text(money(total)).font(.display(.title2, weight: .bold)).monospacedDigit().rollingNumber(total)
-            } value: {
-                Text("across \(debts.count) \(debts.count == 1 ? "debt" : "debts")")
-                    .font(.ui(.subheadline)).foregroundStyle(.secondary)
-            }
-        }
-    }
-}
-
-/// Progress on the first few savings goals.
-private struct GoalsSummary: View {
-    @EnvironmentObject var store: Store
-    let open: () -> Void
-
-    var body: some View {
-        let goals = store.state.goals
-        let saved = goals.reduce(0) { $0 + store.engine.goalStatus($1).saved }
-        let target = goals.reduce(0) { $0 + $1.target }
-        HomeCard(id: "home.goals", title: "Savings goals", icon: "target",
-                 summary: goals.isEmpty ? "None yet" : "\(money0(saved)) of \(money0(target))", open: open) {
-            if goals.isEmpty {
-                Text("Set a goal, like an emergency fund, and watch it grow each payday.")
-                    .font(.ui(.subheadline)).foregroundStyle(.secondary)
-            } else {
-                ForEach(goals.prefix(3)) { g in
-                    let st = store.engine.goalStatus(g)
-                    VStack(alignment: .leading, spacing: 4) {
-                        ValueRow {
-                            Text(g.name).font(.ui(.subheadline)).lineLimit(1)
-                        } value: {
-                            Text("\(money0(st.saved)) of \(money0(g.target))")
-                                .font(.ui(.subheadline)).monospacedDigit().foregroundStyle(.secondary)
-                        }
-                        ProgressBar(value: st.progress, color: st.done ? Theme.good : TypeInfo.of("savings").color, height: 6)
-                    }
-                }
-                if goals.count > 3 {
-                    Text("and \(goals.count - 3) more").font(.ui(.caption)).foregroundStyle(.secondary)
-                }
-            }
-        }
-    }
-}
-
-/// Savings + investments − what's owed, and how it's changed since the last saved point
-/// (saved whenever investments are imported or edited, see Investments.swift).
-private struct NetWorthCard: View {
-    @EnvironmentObject var store: Store
-    let open: () -> Void
-
-    var body: some View {
-        let nw = store.engine.netWorth()
-        let last = store.engine.lastValuePoint()
-        HomeCard(id: "home.networth", title: "Net worth", icon: "chart.line.uptrend.xyaxis",
-                 summary: money0(nw.total), summaryColor: nw.total < 0 ? Theme.over : .secondary, open: open) {
-            Text(money(nw.total)).font(.display(.title, weight: .bold)).monospacedDigit()
-                .foregroundStyle(nw.total < 0 ? Theme.over : .primary)
-            if let last, let d = DU.parseISO(last.date) {
-                let change = nw.total - last.net
-                Text("\(change >= 0 ? "Up" : "Down") \(money(abs(change))) since \(DU.short(d))")
-                    .font(.ui(.subheadline).weight(.semibold))
-                    .foregroundStyle(change >= 0 ? Theme.good : Theme.over)
-            }
-            VStack(spacing: 4) {
-                row("Savings goals", nw.saved)
-                row("Investments", nw.invested)
-                row("Debts and loans", -nw.owed)
-            }
-        }
-    }
-
-    func row(_ label: String, _ v: Double) -> some View {
-        ValueRow {
-            Text(label).font(.ui(.subheadline))
-        } value: {
-            Text(v < 0 ? "−" + money(-v) : money(v)).font(.ui(.subheadline)).monospacedDigit().foregroundStyle(.secondary)
         }
     }
 }
