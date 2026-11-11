@@ -10,7 +10,8 @@ import Foundation
 // - Months are "yyyy-MM" text and dates are "yyyy-MM-dd" text (see DateUtil.swift),
 //   which also sort correctly as plain strings.
 // - IDs are a one-letter prefix plus 7 random characters (r = recurring, x = one-time,
-//   b = purchase, i = extra income, d = debt, g = goal, l = loan).
+//   b = purchase, i = extra income, d = debt, g = goal, l = loan, a = investment account,
+//   h = holding).
 // - Each type has an empty `init()` for making a new item in code (every field starts at
 //   its default) and an `init(from:)` that reads a saved file.
 
@@ -112,7 +113,7 @@ struct Recurring: Codable, Identifiable, Equatable {
     var start: String = ""                // first month, yyyy-MM, "" for no limit
     var end: String = ""                  // last month, yyyy-MM, "" for no limit
     var debtId: String = ""               // debt payments: which Debt marking it paid pays down
-    var goalId: String = ""               // savings: which Goal marking it paid adds to
+    var goalId: String = ""               // savings: which Goal (or investment account, see Investments.swift) marking it paid adds to
     var autopay: Bool = false             // counts as paid once its due date has passed
     var bucket: String? = nil             // web app only; kept so it survives a round trip
     var loanPlan: Bool = false            // the student loan payment line (left out of card payoff math)
@@ -414,6 +415,8 @@ struct BudgetState: Codable, Equatable {
     var goals: [Goal] = []
     var loans: [Loan] = []
     var loanPlan = LoanPlan()
+    var accounts: [InvestAccount] = []      // investment accounts; app only (see Investments.swift)
+    var investHistory: [ValuePoint] = []    // investment total and net worth by day, for the chart; app only
     var strategy: String = "avalanche"     // avalanche (highest rate first) | snowball (smallest balance first) | target (targetDebt first)
     var extra: Double = 0                  // extra paid toward debt each month
     var targetDebt: String? = nil          // Debt id for the "target" strategy
@@ -435,6 +438,8 @@ struct BudgetState: Codable, Equatable {
         goals = (try? c.decodeIfPresent([Goal].self, forKey: .goals)) ?? []
         loans = (try? c.decodeIfPresent([Loan].self, forKey: .loans)) ?? []
         loanPlan = (try? c.decodeIfPresent(LoanPlan.self, forKey: .loanPlan)) ?? LoanPlan()
+        accounts = (try? c.decodeIfPresent([InvestAccount].self, forKey: .accounts)) ?? []
+        investHistory = (try? c.decodeIfPresent([ValuePoint].self, forKey: .investHistory)) ?? []
         strategy = c.str(.strategy) ?? "avalanche"
         extra = c.dbl(.extra) ?? 0
         targetDebt = c.str(.targetDebt)

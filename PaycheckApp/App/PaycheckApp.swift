@@ -109,10 +109,12 @@ struct RootView: View {
             if p == .active { store.refresh() }
         }
         .task(id: phase) {
-            // While the app is open, check the sync folder now and every 30 seconds.
+            // While the app is open, check the sync folder now and every 30 seconds, and
+            // update investment prices when they're due (at most every few hours).
             guard phase == .active else { return }
             while !Task.isCancelled {
                 await store.syncNow()
+                await store.updatePrices()
                 try? await Task.sleep(for: .seconds(30))
             }
         }

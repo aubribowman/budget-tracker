@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Savings goals: how much is saved, what's planned each month, and when you'll get there.
+/// Investments have their own screen, opened from Net worth on Home (InvestmentsSection.swift).
 struct GoalsView: View {
     @EnvironmentObject var store: Store
     @State private var editing: Goal?

@@ -38,7 +38,7 @@ Shown with sample data.
 
 ### Tabs
 
-- **Home**: what's left on this paycheck, your next payday, bills to pay now, spending left, debt, and savings goals. Each card folds to one line. The gear in the top corner opens **Setup**.
+- **Home**: what's left on this paycheck, your next payday, bills to pay now, spending left, debt, savings goals, and net worth. Each card folds to one line. The gear in the top corner opens **Setup**.
 - **Paychecks**: every paycheck in the month with its bills grouped by type. Tap an item's circle to mark it paid (the same circle works in **To pay now** on Home and Paychecks), or long-press to set it aside. Every status change shows an **Undo** bar for a few seconds. Also autopay, moving a bill to another paycheck, skipping a month, one-time items, and pay-ahead. Paychecks and type groups fold. One-time items, extra income and **Use savings** are under **Add to this paycheck**.
 - **Purchases**: spending categories stacked with what's left in each, logging purchases, moving them between categories, swipe to delete, and **Import from bank** in the **+** menu. Each purchase shows its store's first letter in a color worked out from the name, so the same store always looks the same.
 - **Month**: what came in and went out, where your pay goes, and over-budget items. The clipboard button opens the **monthly review**.
@@ -50,6 +50,9 @@ Shown with sample data.
 
 - **Bank import**: reads the CSV file you download from your bank and suggests where each transaction goes. See [Import from your bank](#import-from-your-bank).
 - **Savings goals**: a target, what's saved, an optional target date, and whether you're on track. Link a savings item on your paychecks to a goal, and marking it paid moves the goal forward. When it's time to spend what you saved, **Use savings** (on a goal or a paycheck) adds the money to that paycheck as income, marks what it paid for as paid, and takes it off the goal, so what's left to spend doesn't change. Set **Counts as** to Debt payments and pick the debt under **Pays down**, and that debt's balance on **Payoff** goes down too. One-time debt payments can be linked the same way.
+- **Investments**: tap the **Net worth** card on Home. Each account shows its holdings, value, and gain or loss against what you paid. **Import from Fidelity** reads the positions file from fidelity.com (**Positions → Download**), and importing again updates the same accounts by account number. You can also add accounts and holdings by hand. Link a savings item on your paychecks to an account under **Goes to** in Setup → Recurring, and marking it paid adds to the account until your next import. Each import or edit saves a point for the **value over time** chart. The file is only read on your device; the app doesn't connect to Fidelity.
+- **Daily prices** (optional): in Setup → **Investment prices**, paste a free key from [tiingo.com](https://www.tiingo.com/account/api/token). A few times a day while the app is open, it gets each fund's and stock's latest closing price and sets the value to shares × price. Only symbols are sent. Share counts still come from your last import, so import again after you buy or sell. The key stays in each device's keychain and isn't synced.
+- **Net worth** on Home: savings goals plus investments, minus debts and student loans, and how much it's changed since the last saved point.
 - **Credit utilization**: how much of your credit limits you're using overall and per card, and what to pay to get under 30% and 10%. Add a **Credit limit** to a card in its debt settings. Set **Statement closes** there too, and the card shows its next closing date, the utilization screen says what to pay before it, and you get a reminder the day before (the balance on that day is what's reported to credit bureaus).
 - **Monthly review**: plan vs. actual, each category over or under, bills not marked paid, debt paid, savings, and a comparison with the month before. Early each month, Home reminds you that last month's review is ready.
 - **Windfall planner**: for a tax refund or bonus. On Home, tap **Got extra money? Plan it**. It suggests a split, shows how much sooner you'll be debt-free and how much interest you'll save, and can apply it to your balances.
@@ -156,8 +159,8 @@ Rules and import history are kept separately from the web app's, so don't import
 PaycheckApp/                  The app (iPhone and Mac)
   App/                        App entry and tabs, and Store: holds the budget, saves it, applies every change
   Model/                      The data, in the same format as the web app's backup file
-  Engine/                     Budget math: paychecks, totals, debt payoff, student loans, goals
-  Services/                   Sync folder, reminders, widget data, Face ID lock, bank CSV reader
+  Engine/                     Budget math: paychecks, totals, debt payoff, student loans, goals, investments
+  Services/                   Sync folder, reminders, widget data, Face ID lock, bank and Fidelity CSV readers
   Shared/                     Colors, cards and other UI pieces used on several screens, and
                               Platform.swift (iPhone-only touches with their Mac versions)
   Utilities/                  Date and money helpers
@@ -167,7 +170,7 @@ PaycheckApp/                  The app (iPhone and Mac)
     Purchases/                Purchases and bank import
     Month/                    Month and the monthly review
     Payoff/                   Debts, the payoff chart, student loans, credit utilization
-    Goals/                    Savings goals
+    Goals/                    Savings goals and investments
     Settings/                 Setup, pay schedule, recurring items, sync
   Resources/                  Fonts (Space Grotesk and DM Sans, with their licenses) and the
                               privacy manifest (PrivacyInfo.xcprivacy)
@@ -200,6 +203,8 @@ A paycheck is built like this: find the paydays in the month (`checksIn`), give 
 - **Round money with `r2`** before saving it.
 - **Balances count forward from when you entered them.** A debt or goal stores the balance you typed with `asOf` (the day) and `asOfAt` (the exact time). Today's balance is that number minus payments marked paid after it (`paidSince` in [Engine.swift](PaycheckApp/Engine/Engine.swift)), using each payment's `paidAt` time. Set `asOfAt` with `DU.stamp()` whenever you change a balance, or payments can be counted twice or not at all.
 - **Status changes can be undone.** `Store.setStatus` saves the budget from before the change in `undoNote`, which shows the Undo bar ([UndoToast.swift](PaycheckApp/Shared/UndoToast.swift)) for 5 seconds.
+- **Investment accounts share `goalId` with goals.** A savings item's `goalId` can hold a goal's id or an investment account's id ([Investments.swift](PaycheckApp/Model/Investments.swift)), so both use the same paid-since math in [Engine+Goals.swift](PaycheckApp/Engine/Engine+Goals.swift). An account's holdings are a snapshot; contributions marked paid after it are added on top until the next import replaces them.
+- **Price updates sync first.** [PriceService.swift](PaycheckApp/Services/PriceService.swift) only changes `price`, `value` and `priceAt`, never shares or `asOf`. `Store.updatePrices` syncs before saving and skips the update if sync failed, so new prices on an old copy can't replace another device's changes. The Mac app needs the `network.client` entitlement for this.
 - **Using savings makes linked items.** The income (`IncomeItem.goalId`) and the spending (`OneTime.useId`) are changed and deleted together through [BudgetState+Savings.swift](PaycheckApp/Model/BudgetState+Savings.swift), so the goal balance stays right. Go through the Store functions instead of editing them directly.
 - **Use the shared styles.** [Theme.swift](PaycheckApp/Shared/Theme.swift) has the spacing steps (`Space`), corner sizes (`Radius`), `CardHeader` for card titles, and `heroNumber` / `rollingNumber` for money figures. Item icons come from [ItemIcon.swift](PaycheckApp/Shared/ItemIcon.swift), empty lists use `EmptyState`, and swipeable rows inside cards use `swipeRow` from [SwipeRow.swift](PaycheckApp/Shared/SwipeRow.swift). Name-and-amount rows use `ValueRow` ([ValueRow.swift](PaycheckApp/Shared/ValueRow.swift)), which stacks them at the largest text sizes. Tab titles use `PageTitle` and `.pageTitle` from [Platform.swift](PaycheckApp/Shared/Platform.swift), so they line up with the cards on iPad.
 - **Run the tests after changing the math.** The tests in [PaycheckAppTests](PaycheckAppTests) check paydays, which paycheck each bill lands on, totals, rollover and payoff dates. Run them with Product → Test (⌘U).

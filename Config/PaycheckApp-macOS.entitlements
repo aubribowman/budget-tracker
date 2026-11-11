@@ -9,5 +9,8 @@
 	<!-- Lets the app reopen the sync folder you picked after it restarts. -->
 	<key>com.apple.security.files.bookmarks.app-scope</key>
 	<true/>
+	<!-- Lets the app ask Tiingo for daily investment prices (Setup → Investment prices). -->
+	<key>com.apple.security.network.client</key>
+	<true/>
 </dict>
 </plist>

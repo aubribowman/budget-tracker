@@ -8,6 +8,7 @@ struct HomeView: View {
     @State private var adding = false
     @State private var showSetup = false
     @State private var showGoals = false
+    @State private var showInvestments = false
     @State private var reviewMonth: String?
     @State private var windfall = false
     @AppStorage(Review.key) private var reviewed = ""
@@ -50,6 +51,8 @@ struct HomeView: View {
                             DebtSummary { tab = .debt }
                         }
                         GoalsSummary { showGoals = true }
+                        // Always shown, since it's the way into Investments.
+                        NetWorthCard { showInvestments = true }
                         // Quick actions at the bottom.
                         if !envs.isEmpty {
                             Button { adding = true } label: {
@@ -89,6 +92,7 @@ struct HomeView: View {
             }
             .sheet(isPresented: $windfall) { WindfallView().macSheet() }
             .navigationDestination(isPresented: $showGoals) { GoalsView() }
+            .navigationDestination(isPresented: $showInvestments) { InvestmentsView() }
         }
     }
 
@@ -424,6 +428,42 @@ private struct GoalsSummary: View {
                     Text("and \(goals.count - 3) more").font(.ui(.caption)).foregroundStyle(.secondary)
                 }
             }
+        }
+    }
+}
+
+/// Savings + investments − what's owed, and how it's changed since the last saved point
+/// (saved whenever investments are imported or edited, see Investments.swift).
+private struct NetWorthCard: View {
+    @EnvironmentObject var store: Store
+    let open: () -> Void
+
+    var body: some View {
+        let nw = store.engine.netWorth()
+        let last = store.engine.lastValuePoint()
+        HomeCard(id: "home.networth", title: "Net worth", icon: "chart.line.uptrend.xyaxis",
+                 summary: money0(nw.total), summaryColor: nw.total < 0 ? Theme.over : .secondary, open: open) {
+            Text(money(nw.total)).font(.display(.title, weight: .bold)).monospacedDigit()
+                .foregroundStyle(nw.total < 0 ? Theme.over : .primary)
+            if let last, let d = DU.parseISO(last.date) {
+                let change = nw.total - last.net
+                Text("\(change >= 0 ? "Up" : "Down") \(money(abs(change))) since \(DU.short(d))")
+                    .font(.ui(.subheadline).weight(.semibold))
+                    .foregroundStyle(change >= 0 ? Theme.good : Theme.over)
+            }
+            VStack(spacing: 4) {
+                row("Savings goals", nw.saved)
+                row("Investments", nw.invested)
+                row("Debts and loans", -nw.owed)
+            }
+        }
+    }
+
+    func row(_ label: String, _ v: Double) -> some View {
+        ValueRow {
+            Text(label).font(.ui(.subheadline))
+        } value: {
+            Text(v < 0 ? "−" + money(-v) : money(v)).font(.ui(.subheadline)).monospacedDigit().foregroundStyle(.secondary)
         }
     }
 }

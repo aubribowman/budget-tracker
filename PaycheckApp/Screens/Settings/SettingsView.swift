@@ -84,6 +84,9 @@ struct SettingsView: View {
                          : "Adds purchases and marks bills paid from a file you download from your bank. Your choices are remembered for next time.")
                 }
 
+                // Daily investment prices: its own view (PriceSection.swift).
+                if !store.state.accounts.isEmpty { PriceSection() }
+
                 // Sync folder: its own view (SyncSection.swift).
                 SyncSection(sync: store.sync, choose: { pickingFolder = true; importing = true }, found: $foundSync)
 

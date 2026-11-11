@@ -66,16 +66,33 @@ final class SyncFolder: ObservableObject {
             problem = nil
             lastSynced = Date()
             return s
+        } catch SyncError.waitingForICloud {
+            problem = SyncError.waitingForICloud.localizedDescription
+            return nil
         } catch {
             problem = "Couldn’t read the sync folder: \(error.localizedDescription)"
             return nil
         }
     }
 
+    /// True when the sync file isn't in iCloud, or this device has iCloud's newest copy of
+    /// it. When it's false, iCloud is asked to download the newest copy, and nothing should
+    /// be written: writing would replace changes from another device this one hasn't seen.
+    func isUpToDate() async -> Bool {
+        guard let folder else { return true }
+        return await Task.detached { SyncFolder.isCurrent(folder: folder) }.value
+    }
+
     /// Writes the budget to the sync folder. Called after every change. Errors show in
     /// `problem` (on the Setup screen) instead of interrupting the user.
     func push(_ state: BudgetState) async {
         guard let folder else { return }
+        // Don't replace a newer copy from another device that iCloud hasn't delivered yet.
+        // The next sync (within 30 seconds) compares the two once it has arrived.
+        guard await isUpToDate() else {
+            problem = SyncError.waitingForICloud.localizedDescription
+            return
+        }
         do {
             let enc = JSONEncoder()
             enc.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -113,8 +130,33 @@ final class SyncFolder: ObservableObject {
         return url
     }
 
+    /// See `isUpToDate`. Files outside iCloud (or that iCloud doesn't report on) count as current.
+    nonisolated private static func isCurrent(folder: URL) -> Bool {
+        let ok = folder.startAccessingSecurityScopedResource()
+        defer { if ok { folder.stopAccessingSecurityScopedResource() } }
+        let file = folder.appendingPathComponent(fileName)
+        // iCloud keeps a placeholder named ".Paycheck Plan.json.icloud" until the file downloads.
+        let placeholder = folder.appendingPathComponent("." + fileName + ".icloud")
+        let keys: Set<URLResourceKey> = [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey]
+        let target = FileManager.default.fileExists(atPath: file.path) ? file
+            : FileManager.default.fileExists(atPath: placeholder.path) ? placeholder : nil
+        guard let target else { return true }   // no file yet: an empty folder
+        if target == placeholder {               // only the placeholder: not downloaded yet
+            try? FileManager.default.startDownloadingUbiquitousItem(at: file)
+            return false
+        }
+        guard let v = try? file.resourceValues(forKeys: keys), v.isUbiquitousItem == true,
+              let status = v.ubiquitousItemDownloadingStatus else { return true }
+        if status == .current { return true }
+        try? FileManager.default.startDownloadingUbiquitousItem(at: file)
+        return false
+    }
+
     /// Reads through a file coordinator, which also downloads the file from iCloud if needed.
+    /// Throws `waitingForICloud` while iCloud is still bringing a newer copy, so a stale
+    /// copy (or a missing one) isn't mistaken for the latest.
     nonisolated private static func read(folder: URL) throws -> Data? {
+        guard isCurrent(folder: folder) else { throw SyncError.waitingForICloud }
         let ok = folder.startAccessingSecurityScopedResource()
         defer { if ok { folder.stopAccessingSecurityScopedResource() } }
         let file = folder.appendingPathComponent(fileName)
@@ -141,6 +183,13 @@ final class SyncFolder: ObservableObject {
             do { try data.write(to: url, options: .atomic) } catch { inner = error }
         }
         if let e = outer ?? inner { throw e }
+    }
+}
+
+enum SyncError: LocalizedError {
+    case waitingForICloud
+    var errorDescription: String? {
+        "Waiting for iCloud to download the latest budget from your other device. This usually takes under a minute; keep the app open."
     }
 }
 

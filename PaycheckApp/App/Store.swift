@@ -474,6 +474,58 @@ final class Store: ObservableObject {
         }
     }
 
+    // MARK: Investments (see Model/Investments.swift)
+
+    /// Brings in accounts from a Fidelity positions file. See BudgetState.importPositions.
+    func importPositions(_ accounts: [FidelityCSV.Account], targets: [String: String]) {
+        update { $0.importPositions(accounts, targets: targets) }
+    }
+    /// Adds or updates an investment account.
+    func saveAccount(_ a: InvestAccount) { update { $0.saveAccount(a) } }
+    /// Removes an investment account and unlinks paycheck items that added to it.
+    func deleteAccount(_ id: String) { update { $0.deleteAccount(id) } }
+
+    /// Updates investment prices from Tiingo (see PriceService.swift) when daily updates
+    /// are on, a key is saved, and this device hasn't asked in the last few hours. `force`
+    /// is "Update now" in Setup: it skips the on/off switch and the wait.
+    ///
+    /// It syncs first and gives up if that didn't work, because saving new prices onto an
+    /// out-of-date copy would make it look newest and replace the other device's changes.
+    func updatePrices(force: Bool = false) async {
+        let d = UserDefaults.standard
+        guard force || d.bool(forKey: PriceService.enabledKey) else { return }
+        if !force, let last = d.object(forKey: PriceService.lastTryKey) as? Date,
+           Date().timeIntervalSince(last) < PriceService.everyHours * 3600 { return }
+        guard !state.priceSymbols.isEmpty else {
+            if force { d.set("No holdings with shares to price yet.", forKey: PriceService.statusKey) }
+            return
+        }
+        guard let key = PriceService.Key.get(), !key.isEmpty else {
+            d.set(PriceService.PriceError.noKey.localizedDescription, forKey: PriceService.statusKey)
+            return
+        }
+        if sync.isOn {
+            await syncNow()
+            guard sync.problem == nil else { return }   // try again on the next round
+        }
+        d.set(Date(), forKey: PriceService.lastTryKey)
+        let r = await PriceService.fetch(symbols: state.priceSymbols, key: key)
+        if !r.quotes.isEmpty {
+            var test = state
+            if test.applyPrices(r.quotes) { update { $0.applyPrices(r.quotes) } }
+        }
+        var msg: String
+        if let err = r.error, r.quotes.isEmpty {
+            msg = err.localizedDescription
+        } else {
+            let day = r.quotes.values.map(\.date).max().flatMap(DU.parseISO).map { " Prices from \(DU.short($0))." } ?? ""
+            msg = "Updated \(Date().formatted(date: .abbreviated, time: .shortened)).\(day)"
+            if let err = r.error { msg += " " + err.localizedDescription }
+        }
+        if !r.missing.isEmpty { msg += " No price found for \(r.missing.joined(separator: ", "))." }
+        d.set(msg, forKey: PriceService.statusKey)
+    }
+
     /// Adds or removes the "Extra → debt" line on paychecks.
     func setExtraLine(on: Bool) {
         update { s in

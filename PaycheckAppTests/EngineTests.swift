@@ -644,3 +644,195 @@ struct TypedAmountTests {
         #expect(DebtEditSheet.number("abc") == nil)
     }
 }
+
+/// Reading Fidelity positions files (Positions → Download on fidelity.com).
+@MainActor
+struct FidelityCSVTests {
+    /// The current layout, with made-up accounts: two funds and cash in one, a stock and
+    /// pending activity in another, and the notes Fidelity adds at the bottom.
+    static let newer = """
+    Account Number,Account Name,Symbol,Description,Quantity,Last Price,Last Price Change,Current Value,Today's Gain/Loss Dollar,Today's Gain/Loss Percent,Total Gain/Loss Dollar,Total Gain/Loss Percent,Percent Of Account,Cost Basis Total,Average Cost Basis,Type
+    Z11112222,Individual,FXAIX,FIDELITY 500 INDEX FUND,10.5,$200.00,+$1.20,"$2,100.00",+$12.60,+0.60%,+$600.00,+40.00%,70.00%,"$1,500.00",$142.86,Cash,
+    Z11112222,Individual,SPAXX**,HELD IN MONEY MARKET,,,,$400.00,,,,,13.33%,,,Cash,
+    Z11112222,Individual,FZROX,FIDELITY ZERO TOTAL MARKET,25,$20.00,-$0.10,$500.00,-$2.50,-0.50%,-$50.00,-9.09%,16.67%,$550.00,$22.00,Cash,
+    123456789,ROTH IRA,AAPL,APPLE INC,4,$250.00,+$2.00,"$1,000.00",+$8.00,+0.80%,+$200.00,+25.00%,105.26%,$800.00,$200.00,Cash,
+    123456789,ROTH IRA,Pending Activity,,,,,-$50.00,,,,,,,,,
+
+    "The data and information in this spreadsheet is provided to you solely for your use."
+    "Brokerage services are provided by Fidelity Brokerage Services LLC."
+
+    "Date downloaded Nov-10-2026 3:45 p.m ET"
+    """
+
+    @Test func readsAccountsAndHoldings() throws {
+        let a = try FidelityCSV.parse(Self.newer)
+        #expect(a.count == 2)
+        #expect(a[0].number == "Z11112222" && a[0].name == "Individual")
+        #expect(a[0].holdings.count == 3)
+        #expect(a[0].total == 3000)
+        let fx = try #require(a[0].holdings.first { $0.symbol == "FXAIX" })
+        #expect(fx.shares == 10.5 && fx.price == 200 && fx.cost == 1500 && !fx.cash)
+        let cash = try #require(a[0].holdings.first { $0.symbol == "SPAXX" })
+        #expect(cash.cash && cash.cost == nil)
+        #expect(a[1].total == 950)   // $1,000 of Apple less $50 pending
+        #expect(a[1].holdings.contains { $0.name == "Pending activity" && $0.cash })
+    }
+
+    @Test func readsTheOlderOneColumnLayout() throws {
+        let text = """
+        Account Name/Number,Symbol,Description,Quantity,Last Price,Current Value,Cost Basis Total
+        ROTH IRA 123456789,FXAIX,FIDELITY 500 INDEX FUND,2,$100.00,$200.00,$150.00
+        """
+        let a = try FidelityCSV.parse(text)
+        #expect(a.count == 1)
+        #expect(a[0].number == "123456789" && a[0].name == "ROTH IRA")
+        #expect(a[0].total == 200)
+    }
+
+    @Test func readsTheDownloadDate() {
+        let d = FidelityCSV.downloaded(Self.newer)
+        #expect(d.map(DU.iso) == "2026-11-10")
+    }
+
+    @Test func rejectsOtherFiles() {
+        #expect(throws: FidelityCSV.ParseError.self) { try FidelityCSV.parse("Date,Description,Amount\n11/01/2026,Coffee,-4.50") }
+    }
+}
+
+/// Investment accounts: importing, contributions from paychecks, and net worth.
+@MainActor
+struct InvestmentTests {
+    func budget() -> BudgetState {
+        var s = semiBudget()
+        s.settings.startMonth = DU.ym(Date())
+        return s
+    }
+
+    @Test func importAddsAccountsThenUpdatesTheSameOnes() throws {
+        var s = budget()
+        let found = try FidelityCSV.parse(FidelityCSVTests.newer)
+        s.importPositions(found, targets: Dictionary(uniqueKeysWithValues: found.map { ($0.key, "") }))
+        #expect(s.accounts.count == 2)
+        #expect(Engine(s).investTotal() == 3950)
+        #expect(s.investHistory.count == 1 && s.investHistory[0].invest == 3950)
+
+        // Next time, the same account numbers update those accounts instead of adding more.
+        var again = found
+        again[0].holdings = [Holding()]; again[0].holdings[0].value = 3500
+        let targets = Dictionary(uniqueKeysWithValues: again.map { a in (a.key, s.accounts.first { $0.number == a.number }!.id) })
+        s.importPositions(again, targets: targets)
+        #expect(s.accounts.count == 2)
+        #expect(Engine(s).investTotal() == 4450)
+        #expect(s.investHistory.count == 1)   // one point per day
+    }
+
+    @Test func skippedAccountsAreLeftOut() throws {
+        var s = budget()
+        let found = try FidelityCSV.parse(FidelityCSVTests.newer)
+        s.importPositions(found, targets: [found[0].key: ""])
+        #expect(s.accounts.map(\.number) == ["Z11112222"])
+    }
+
+    @Test func paycheckContributionsAddUntilTheNextImport() {
+        var s = budget()
+        var a = InvestAccount(); a.name = "Roth IRA"; a.asOf = "2020-01-01"; a.asOfAt = nil
+        var h = Holding(); h.value = 1000; a.holdings = [h]
+        s.accounts = [a]
+        var x = OneTime(); x.name = "IRA deposit"; x.type = "savings"; x.amount = 250
+        x.paid = true; x.paidAt = DU.stamp(); x.goalId = a.id
+        var c = Cell(); c.extras = [x]
+        s.months[DU.ym(Date())] = ["1": c]
+        #expect(Engine(s).accountValue(s.accounts[0]) == 1250)
+        #expect(Engine(s).contributedSince(s.accounts[0]) == 250)
+    }
+
+    @Test func netWorthIsSavingsPlusInvestmentsMinusDebts() {
+        var s = budget()
+        var g = Goal(); g.balance = 500; g.target = 1000; g.asOf = "2020-01-01"
+        var d = Debt(); d.balance = 300; d.asOf = "2020-01-01"
+        var a = InvestAccount(); var h = Holding(); h.value = 2000; a.holdings = [h]
+        s.goals = [g]; s.debts = [d]; s.accounts = [a]
+        let nw = Engine(s).netWorth()
+        #expect(nw.saved == 500 && nw.invested == 2000 && nw.owed == 300)
+        #expect(nw.total == 2200)
+    }
+
+    @Test func deletingAnAccountUnlinksPaycheckItems() {
+        var s = budget()
+        let a = InvestAccount()
+        var r = Recurring(); r.type = "savings"; r.goalId = a.id
+        s.accounts = [a]; s.recurring = [r]
+        s.deleteAccount(a.id)
+        #expect(s.accounts.isEmpty && s.recurring[0].goalId == "")
+    }
+
+    @Test func accountsSurviveSavingAndLoading() throws {
+        var s = budget()
+        var a = InvestAccount(); a.name = "401(k)"; a.number = "X1"
+        var h = Holding(); h.symbol = "FXAIX"; h.shares = 2; h.value = 400; h.cost = 300; a.holdings = [h]
+        s.accounts = [a]
+        s.recordValues()
+        let back = try JSONDecoder().decode(BudgetState.self, from: JSONEncoder().encode(s))
+        #expect(back.accounts == s.accounts)
+        #expect(back.investHistory == s.investHistory)
+    }
+}
+
+/// Daily prices from Tiingo, with a fake network so nothing is sent.
+@MainActor
+struct PriceTests {
+    static func reply(_ code: Int, _ body: String) -> PriceService.Fetch {
+        { req in (Data(body.utf8), HTTPURLResponse(url: req.url!, statusCode: code, httpVersion: nil, headerFields: nil)!) }
+    }
+
+    @Test func symbolsUseHyphensForShareClasses() {
+        #expect(PriceService.tiingoSymbol(" brk.b ") == "BRK-B")
+        #expect(PriceService.tiingoSymbol("BF/B") == "BF-B")
+        let r = PriceService.request(symbol: "FXAIX", key: "abc")!
+        #expect(r.url?.absoluteString == "https://api.tiingo.com/tiingo/daily/FXAIX/prices")
+        #expect(r.value(forHTTPHeaderField: "Authorization") == "Token abc")
+        #expect(r.url?.absoluteString.contains("abc") == false)
+    }
+
+    @Test func readsTheLastClose() {
+        let body = #"[{"date":"2026-11-06T00:00:00.000Z","close":210.5,"adjClose":210.5},{"date":"2026-11-09T00:00:00.000Z","close":212.25}]"#
+        #expect(PriceService.parse(Data(body.utf8)) == .init(close: 212.25, date: "2026-11-09"))
+        #expect(PriceService.parse(Data("[]".utf8)) == nil)
+    }
+
+    @Test func errorsAreSortedOut() async {
+        let ok = #"[{"date":"2026-11-09T00:00:00.000Z","close":100}]"#
+        var r = await PriceService.fetch(symbols: ["VTI", "FXAIX", "VTI"], key: "k", using: Self.reply(200, ok))
+        #expect(r.quotes.count == 2 && r.error == nil)
+        r = await PriceService.fetch(symbols: ["VTI"], key: "k", using: Self.reply(401, #"{"detail":"Invalid token."}"#))
+        #expect(r.error == .badKey)
+        r = await PriceService.fetch(symbols: ["VTI"], key: "k", using: Self.reply(429, ""))
+        #expect(r.error == .tooMany)
+        r = await PriceService.fetch(symbols: ["ZZZZ"], key: "k", using: Self.reply(404, #"{"detail":"Not found."}"#))
+        #expect(r.missing == ["ZZZZ"] && r.error == nil)
+        r = await PriceService.fetch(symbols: ["VTI"], key: " ", using: Self.reply(200, ok))
+        #expect(r.error == .noKey)
+    }
+
+    @Test func pricesUpdateValuesButNotSharesOrCash() {
+        var s = semiBudget()
+        var a = InvestAccount()
+        var fund = Holding(); fund.symbol = "FXAIX"; fund.shares = 10; fund.price = 200; fund.value = 2000; fund.cost = 1500
+        var cash = Holding(); cash.symbol = "SPAXX"; cash.cash = true; cash.shares = 50; cash.price = 1; cash.value = 50
+        a.holdings = [fund, cash]; a.asOf = "2026-11-01"
+        s.accounts = [a]
+        #expect(s.priceSymbols == ["FXAIX"])
+
+        let q = ["FXAIX": PriceService.Quote(close: 212.345, date: "2026-11-09"), "SPAXX": .init(close: 2, date: "2026-11-09")]
+        let changed = s.applyPrices(q)
+        #expect(changed)
+        let h = s.accounts[0].holdings
+        #expect(h[0].value == 2123.45 && h[0].shares == 10 && h[0].priceAt == "2026-11-09")
+        #expect(abs((h[0].gain ?? 0) - 623.45) < 0.001)
+        #expect(h[1].value == 50)
+        #expect(s.accounts[0].asOf == "2026-11-01")
+        #expect(s.investHistory.last?.invest == 2173.45)
+        let again = s.applyPrices(q)
+        #expect(!again)   // same prices again: nothing to save
+    }
+}

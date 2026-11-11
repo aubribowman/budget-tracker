@@ -102,10 +102,12 @@ struct RecurringEditSheet: View {
                         ForEach(store.state.debts) { Text($0.name).tag($0.id) }
                     }
                 }
-                if item.type == "savings" && !store.state.goals.isEmpty {
-                    Picker("Goal", selection: $item.goalId) {
+                // Savings can go to a goal or an investment account; both use `goalId`.
+                if item.type == "savings" && !(store.state.goals.isEmpty && store.state.accounts.isEmpty) {
+                    Picker("Goes to", selection: $item.goalId) {
                         Text("Not linked").tag("")
                         ForEach(store.state.goals) { Text($0.name).tag($0.id) }
+                        ForEach(store.state.accounts) { Text("\($0.name) (investing)").tag($0.id) }
                     }
                 }
                 Section("Icon") {
